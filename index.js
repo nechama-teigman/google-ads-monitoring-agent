@@ -17,10 +17,13 @@ class GoogleAdsAgent {
 
   async initialize() {
     try {
-      // Load credentials from secrets.json
-      const secretsPath = path.join(__dirname, 'secrets.json');
-      const secretsData = await fs.readFile(secretsPath, 'utf8');
-      this.credentials = JSON.parse(secretsData);
+      // Load credentials from environment variables (for cloud deployment)
+      this.credentials = {
+        client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+        client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+        developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+        refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
+      };
 
       // Initialize Google Ads client
       this.client = new GoogleAdsApi({
