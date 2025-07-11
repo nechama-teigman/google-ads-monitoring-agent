@@ -14,7 +14,7 @@
     "openai": "^4.0.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=22.17.0"
   },
   "keywords": [
     "google-ads",
