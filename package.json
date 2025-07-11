@@ -2,9 +2,9 @@
   "name": "google-ads-monitoring-agent",
   "version": "1.0.0",
   "description": "Background agent for monitoring Google Ads campaigns and handling disapproved ads",
-  "main": "cloud-agent.js",
+  "main": "run-job.js",
   "scripts": {
-    "start": "node cloud-agent.js",
+    "start": "node run-job.js",
     "dev": "node index.js",
     "deploy": "echo 'Ready for cloud deployment'"
   },
