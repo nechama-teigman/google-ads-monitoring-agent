@@ -399,31 +399,27 @@ class GoogleAdsCloudAgent {
   }
 }
 
+// Add global unhandled rejection handler
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('UNHANDLED REJECTION:', reason);
+  process.exit(1);
+});
+
 // Main execution
 async function main() {
-  const agent = new GoogleAdsCloudAgent(false); // Set to true for dry run
-  
   try {
-    // Setup graceful shutdown
+    const agent = new GoogleAdsCloudAgent(false); // Set to true for dry run
     agent.setupGracefulShutdown();
-    
-    // Initialize the agent
     const initialized = await agent.initialize();
     if (!initialized) {
       await agent.logger.log('❌ Failed to initialize cloud agent, exiting...');
       process.exit(1);
     }
-    
-    // Get customer ID from environment or use default
     const customerId = process.env.GOOGLE_ADS_CUSTOMER_ID || '2080307721';
-    
-    // Start continuous monitoring
     await agent.startMonitoring(customerId, 60);
-    
     await agent.logger.log('🎯 Cloud agent is now running 24/7!');
-    
   } catch (error) {
-    await agent.logger.logError(error, 'Fatal error in cloud agent');
+    console.error('FATAL ERROR:', error);
     process.exit(1);
   }
 }
