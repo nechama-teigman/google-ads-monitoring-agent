@@ -17,6 +17,8 @@ class GoogleAdsAgent {
 
   async initialize() {
     try {
+      console.log('🔧 Checking environment variables...');
+      
       // Load credentials from environment variables (for cloud deployment)
       this.credentials = {
         client_id: process.env.GOOGLE_ADS_CLIENT_ID,
@@ -24,6 +26,21 @@ class GoogleAdsAgent {
         developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
         refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
       };
+
+      // Validate credentials
+      const missingCreds = [];
+      Object.entries(this.credentials).forEach(([key, value]) => {
+        if (!value) {
+          missingCreds.push(key);
+        }
+      });
+
+      if (missingCreds.length > 0) {
+        throw new Error(`Missing credentials: ${missingCreds.join(', ')}`);
+      }
+
+      console.log('✅ All credentials present');
+      console.log('🔧 Initializing Google Ads API client...');
 
       // Initialize Google Ads client
       this.client = new GoogleAdsApi({
@@ -35,6 +52,12 @@ class GoogleAdsAgent {
       console.log('✅ Google Ads Agent initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize:', error.message);
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        status: error.status
+      });
       throw error;
     }
   }
