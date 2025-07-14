@@ -188,6 +188,18 @@ class GoogleAdsAgent {
     }
   }
 
+  async countEnabledAdsInAdGroup(customerId, adGroupId) {
+    const customer = await this.getCustomerClient(customerId);
+    const query = `
+      SELECT ad_group_ad.status
+      FROM ad_group_ad
+      WHERE ad_group.id = ${adGroupId}
+        AND ad_group_ad.status = 'ENABLED'
+    `;
+    const results = await customer.query(query);
+    return results.length;
+  }
+
   async createAdDuplicate(customerId, originalAd) {
     // Get full ad details first
     const adDetails = await this.getAdDetails(customerId, originalAd.ad_group_ad.resource_name);
@@ -196,6 +208,12 @@ class GoogleAdsAgent {
       console.dir(adDetails, { depth: null });
     }
     const adGroupId = originalAd.ad_group.id;
+    // Check enabled ad count before creating
+    const enabledAdCount = await this.countEnabledAdsInAdGroup(customerId, adGroupId);
+    if (enabledAdCount >= 3) {
+      console.warn(`⚠️  Skipping duplicate: Ad group ${adGroupId} already has ${enabledAdCount} enabled ads (limit is 3).`);
+      return { resource_name: '[SKIPPED] Ad group at limit' };
+    }
     const originalAdData = adDetails.ad_group_ad.ad;
     if (this.dryRun) {
       console.log(`[DRY RUN] originalAdData for ad ID ${originalAd.ad_group_ad.ad.id}:`);
@@ -248,13 +266,10 @@ class GoogleAdsAgent {
       return { resource_name: '[DRY RUN] Not created' };
     }
     const customer = await this.getCustomerClient(customerId);
-    
     try {
       const response = await customer.adGroupAds.create([newAdGroupAd]);
-      
       console.log(`✅ Created duplicate ad: ${response.results[0].resource_name}`);
       return response.results[0];
-      
     } catch (error) {
       console.error('❌ Error creating ad duplicate:', error);
       throw error;
