@@ -271,7 +271,13 @@ class GoogleAdsAgent {
       console.log(`✅ Created duplicate ad: ${response.results[0].resource_name}`);
       return response.results[0];
     } catch (error) {
-      console.error('❌ Error creating ad duplicate:', error);
+      console.error('❌ Error creating ad duplicate:', error && (error.message || error));
+      try {
+        console.error('❌ Full error object:', JSON.stringify(error, null, 2));
+      } catch (jsonErr) {
+        console.error('❌ Could not stringify error object:', jsonErr);
+        console.error('❌ Raw error object:', error);
+      }
       throw error;
     }
   }
