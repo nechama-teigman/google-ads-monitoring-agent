@@ -46,6 +46,7 @@ async function main() {
     const customerId = '2080307721'; // Your sub account
     console.log(`🎯 Running monitoring cycle for customer: ${customerId}`);
     
+    // Only run a single monitoring cycle and exit
     await agent.runMonitoringCycle(customerId);
     console.log('✅ Job completed successfully');
     process.exit(0);
