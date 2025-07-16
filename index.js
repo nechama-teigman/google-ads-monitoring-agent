@@ -14,6 +14,8 @@ class GoogleAdsAgent {
     this.client = null;
     this.credentials = null;
     this.dryRun = dryRun;
+    this.lastApiCall = 0;
+    this.minApiInterval = 2000; // 2 seconds between API calls
   }
 
   async initialize() {
@@ -63,6 +65,19 @@ class GoogleAdsAgent {
     }
   }
 
+  async rateLimit() {
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastApiCall;
+    
+    if (timeSinceLastCall < this.minApiInterval) {
+      const waitTime = this.minApiInterval - timeSinceLastCall;
+      console.log(`⏳ Rate limiting: waiting ${waitTime}ms before next API call...`);
+      await this.sleep(waitTime);
+    }
+    
+    this.lastApiCall = Date.now();
+  }
+
   async getCustomerClient(customerId) {
     return this.client.Customer({
       customer_id: customerId,
@@ -72,6 +87,7 @@ class GoogleAdsAgent {
   }
 
   async getAllEnabledAds(customerId) {
+    await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     
     try {
@@ -91,7 +107,7 @@ class GoogleAdsAgent {
         WHERE campaign.status IN ('ENABLED', 'PAUSED')
         AND ad_group.status IN ('ENABLED', 'PAUSED')
         AND ad_group_ad.status = 'ENABLED'
-        LIMIT 100
+        LIMIT 50
       `;
 
       console.log('🔍 Executing query (including paused campaigns)...');
@@ -101,6 +117,11 @@ class GoogleAdsAgent {
       return results;
     } catch (error) {
       console.error('❌ Error querying ads:', error.message);
+      if (error.message.includes('quota') || error.message.includes('limit')) {
+        console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
+        await this.sleep(60000);
+        return this.getAllEnabledAds(customerId); // Retry once
+      }
       console.error('Full error:', error);
       throw error;
     }
@@ -162,6 +183,7 @@ class GoogleAdsAgent {
   }
 
   async getAdDetails(customerId, adGroupAdResourceName) {
+    await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     
     try {
@@ -185,11 +207,17 @@ class GoogleAdsAgent {
       return results[0];
     } catch (error) {
       console.error('❌ Error getting ad details:', error.message);
+      if (error.message.includes('quota') || error.message.includes('limit')) {
+        console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
+        await this.sleep(60000);
+        return this.getAdDetails(customerId, adGroupAdResourceName); // Retry once
+      }
       throw error;
     }
   }
 
   async countEnabledAdsInAdGroup(customerId, adGroupId) {
+    await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     const query = `
       SELECT ad_group_ad.status
@@ -197,8 +225,18 @@ class GoogleAdsAgent {
       WHERE ad_group.id = ${adGroupId}
         AND ad_group_ad.status = 'ENABLED'
     `;
-    const results = await customer.query(query);
-    return results.length;
+    try {
+      const results = await customer.query(query);
+      return results.length;
+    } catch (error) {
+      console.error('❌ Error counting ads in ad group:', error.message);
+      if (error.message.includes('quota') || error.message.includes('limit')) {
+        console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
+        await this.sleep(60000);
+        return this.countEnabledAdsInAdGroup(customerId, adGroupId); // Retry once
+      }
+      throw error;
+    }
   }
 
   async createAdDuplicate(customerId, originalAd) {
@@ -266,6 +304,8 @@ class GoogleAdsAgent {
       console.dir(newAdGroupAd, { depth: null });
       return { resource_name: '[DRY RUN] Not created' };
     }
+    
+    await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     try {
       const response = await customer.adGroupAds.create([newAdGroupAd]);
@@ -273,6 +313,14 @@ class GoogleAdsAgent {
       return response.results[0];
     } catch (error) {
       console.error('❌ Error creating ad duplicate:', error && (error.message || error));
+      
+      // Handle quota limits specifically
+      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
+        console.error('⚠️  Quota limit hit while creating ad, waiting 120 seconds...');
+        await this.sleep(120000);
+        return this.createAdDuplicate(customerId, originalAd); // Retry once
+      }
+      
       try {
         console.error('❌ Full error object:', JSON.stringify(error, null, 2));
       } catch (jsonErr) {
@@ -371,6 +419,8 @@ class GoogleAdsAgent {
       console.log(`[DRY RUN] Would pause ad: ${adResourceName}`);
       return;
     }
+    
+    await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     
     try {
@@ -383,6 +433,14 @@ class GoogleAdsAgent {
       console.log(`⏸️  Paused disapproved ad: ${adResourceName}`);
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
+      
+      // Handle quota limits specifically
+      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
+        console.error('⚠️  Quota limit hit while pausing ad, waiting 120 seconds...');
+        await this.sleep(120000);
+        return this.pauseDisapprovedAd(customerId, adResourceName); // Retry once
+      }
+      
       throw error; // Re-throw to ensure we know if pausing fails
     }
   }
@@ -394,7 +452,7 @@ class GoogleAdsAgent {
       // Find all disapproved ads across all campaigns
       const disapprovedAds = await this.findAllDisapprovedAds(customerId);
       
-      console.log(`📊 Processing ${disapprovedAds.length} ads (like local environment)`);
+      console.log(`📊 Processing ${disapprovedAds.length} ads (with rate limiting)`);
       
       for (const ad of disapprovedAds) {
         const campaignName = ad.campaign.name;
@@ -414,17 +472,17 @@ class GoogleAdsAgent {
           await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
           console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
           
-          // Add delay to avoid rate limits
-          console.log(`⏳ Waiting 5 seconds before next operation...`);
-          await this.sleep(5000);
+          // Add longer delay to avoid rate limits
+          console.log(`⏳ Waiting 10 seconds before next operation...`);
+          await this.sleep(10000);
           
         } catch (error) {
           console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message);
           console.error(`❌ Full error object:`, error);
           
           // Continue with next ad instead of stopping
-          console.log('⏳ Waiting 5 seconds before next ad...');
-          await this.sleep(5000);
+          console.log('⏳ Waiting 10 seconds before next ad...');
+          await this.sleep(10000);
         }
       }
       
