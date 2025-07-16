@@ -394,24 +394,46 @@ class GoogleAdsAgent {
       // Find all disapproved ads across all campaigns
       const disapprovedAds = await this.findAllDisapprovedAds(customerId);
       
-      for (const ad of disapprovedAds) {
+      // Limit the number of ads processed per run to avoid quota limits
+      const maxAdsPerRun = 3; // Process max 3 ads per run
+      const adsToProcess = disapprovedAds.slice(0, maxAdsPerRun);
+      
+      console.log(`📊 Processing ${adsToProcess.length} ads out of ${disapprovedAds.length} total (limited to avoid quota)`);
+      
+      for (const ad of adsToProcess) {
         const campaignName = ad.campaign.name;
         const adGroupName = ad.ad_group.name;
         
         console.log(`\n📋 Processing disapproved ad in "${campaignName}" > "${adGroupName}"`);
         console.log(`   Ad ID: ${ad.ad_group_ad.ad.id}`);
         
-        // Create duplicate
-        await this.createAdDuplicate(customerId, ad);
-        
-        // IMPORTANT: Pause the original disapproved ad to stay within 3-ad limit
-        await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
-        
-        // Add delay to avoid rate limits
-        await this.sleep(5000);
+        try {
+          // Create duplicate
+          await this.createAdDuplicate(customerId, ad);
+          
+          // IMPORTANT: Pause the original disapproved ad to stay within 3-ad limit
+          await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
+          
+          // Add longer delay to avoid rate limits
+          console.log(`⏳ Waiting 10 seconds before next operation...`);
+          await this.sleep(10000);
+          
+        } catch (error) {
+          console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message);
+          
+          // If it's a quota error, stop processing more ads
+          if (error.message && error.message.includes('limit on the number of allowed resources')) {
+            console.error('⚠️  Quota limit reached. Stopping further processing.');
+            break;
+          }
+          
+          // For other errors, continue with next ad
+          console.log('⏳ Waiting 5 seconds before next ad...');
+          await this.sleep(5000);
+        }
       }
       
-      console.log(`\n✅ Monitoring cycle completed. Processed ${disapprovedAds.length} ads across all campaigns`);
+      console.log(`\n✅ Monitoring cycle completed. Processed ${adsToProcess.length} ads across all campaigns`);
       
     } catch (error) {
       console.error('❌ Error in monitoring cycle:', error);
