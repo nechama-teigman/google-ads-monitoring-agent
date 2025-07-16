@@ -408,7 +408,7 @@ class GoogleAdsAgent {
         await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
         
         // Add delay to avoid rate limits
-        await this.sleep(2000);
+        await this.sleep(5000);
       }
       
       console.log(`\n✅ Monitoring cycle completed. Processed ${disapprovedAds.length} ads across all campaigns`);

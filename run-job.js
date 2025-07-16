@@ -54,6 +54,14 @@ async function main() {
   } catch (error) {
     console.error('❌ Fatal error:', error);
     console.error('❌ Error stack:', error.stack);
+    
+    // Check if it's a quota limit error
+    if (error.message && error.message.includes('limit on the number of allowed resources')) {
+      console.error('⚠️  Google Ads API quota limit reached. This is normal if you have many ads.');
+      console.error('⚠️  The script will retry on the next scheduled run.');
+      return { success: false, reason: 'quota_limit' };
+    }
+    
     console.error('❌ Error details:', {
       name: error.name,
       message: error.message,
