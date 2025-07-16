@@ -220,13 +220,17 @@ class GoogleAdsAgent {
     await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     const query = `
-      SELECT ad_group_ad.status
+      SELECT ad_group_ad.status, ad_group_ad.ad.id
       FROM ad_group_ad
       WHERE ad_group.id = ${adGroupId}
         AND ad_group_ad.status = 'ENABLED'
     `;
     try {
       const results = await customer.query(query);
+      console.log(`🔍 Ad group ${adGroupId} has ${results.length} enabled ads:`);
+      results.forEach((ad, index) => {
+        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${ad.ad_group_ad.status}`);
+      });
       return results.length;
     } catch (error) {
       console.error('❌ Error counting ads in ad group:', error.message);
