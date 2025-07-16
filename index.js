@@ -247,12 +247,17 @@ class GoogleAdsAgent {
       console.dir(adDetails, { depth: null });
     }
     const adGroupId = originalAd.ad_group.id;
+    
     // Check enabled ad count before creating
     const enabledAdCount = await this.countEnabledAdsInAdGroup(customerId, adGroupId);
+    console.log(`📊 Ad group ${adGroupId} currently has ${enabledAdCount} enabled ads`);
+    
     if (enabledAdCount >= 3) {
       console.warn(`⚠️  Skipping duplicate: Ad group ${adGroupId} already has ${enabledAdCount} enabled ads (limit is 3).`);
+      console.warn(`⚠️  This ad group cannot accept more ads. Consider pausing some existing ads first.`);
       return { resource_name: '[SKIPPED] Ad group at limit' };
     }
+    
     const originalAdData = adDetails.ad_group_ad.ad;
     if (this.dryRun) {
       console.log(`[DRY RUN] originalAdData for ad ID ${originalAd.ad_group_ad.ad.id}:`);
@@ -289,6 +294,8 @@ class GoogleAdsAgent {
       if (this.dryRun) {
         console.warn(`[DRY RUN] Unhandled ad type: ${originalAdData.type}`);
       }
+      console.warn(`⚠️  Skipping: Unsupported ad type ${originalAdData.type} for ad ${originalAd.ad_group_ad.ad.id}`);
+      return { resource_name: '[SKIPPED] Unsupported ad type' };
     }
     if (this.dryRun) {
       console.log(`[DRY RUN] newAd for ad ID ${originalAd.ad_group_ad.ad.id}:`);
@@ -313,6 +320,14 @@ class GoogleAdsAgent {
       return response.results[0];
     } catch (error) {
       console.error('❌ Error creating ad duplicate:', error && (error.message || error));
+      
+      // Handle specific resource limit errors
+      if (error.message && error.message.includes('limit on the number of allowed resources')) {
+        console.error('⚠️  Resource limit hit: Ad group cannot accept more ads');
+        console.error('⚠️  This usually means the ad group already has 3 ads or other resource limits');
+        console.error('⚠️  Skipping this ad and continuing with others...');
+        return { resource_name: '[SKIPPED] Resource limit' };
+      }
       
       // Handle quota limits specifically
       if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
@@ -452,7 +467,11 @@ class GoogleAdsAgent {
       // Find all disapproved ads across all campaigns
       const disapprovedAds = await this.findAllDisapprovedAds(customerId);
       
-      console.log(`📊 Processing ${disapprovedAds.length} ads (with rate limiting)`);
+      console.log(`📊 Processing ${disapprovedAds.length} ads (with improved error handling)`);
+      
+      let processedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
       
       for (const ad of disapprovedAds) {
         const campaignName = ad.campaign.name;
@@ -464,8 +483,17 @@ class GoogleAdsAgent {
         try {
           console.log(`🔧 Starting to create duplicate for ad ${ad.ad_group_ad.ad.id}...`);
           // Create duplicate
-          await this.createAdDuplicate(customerId, ad);
+          const duplicateResult = await this.createAdDuplicate(customerId, ad);
+          
+          // Check if the duplicate was actually created or skipped
+          if (duplicateResult.resource_name && duplicateResult.resource_name.includes('[SKIPPED]')) {
+            console.log(`⏭️  Skipped ad ${ad.ad_group_ad.ad.id}: ${duplicateResult.resource_name}`);
+            skippedCount++;
+            continue; // Skip pausing the original if we couldn't create a duplicate
+          }
+          
           console.log(`✅ Successfully created duplicate for ad ${ad.ad_group_ad.ad.id}`);
+          processedCount++;
           
           console.log(`🔧 Starting to pause original ad ${ad.ad_group_ad.ad.id}...`);
           // IMPORTANT: Pause the original disapproved ad to stay within 3-ad limit
@@ -479,6 +507,7 @@ class GoogleAdsAgent {
         } catch (error) {
           console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message);
           console.error(`❌ Full error object:`, error);
+          errorCount++;
           
           // Continue with next ad instead of stopping
           console.log('⏳ Waiting 10 seconds before next ad...');
@@ -486,7 +515,11 @@ class GoogleAdsAgent {
         }
       }
       
-      console.log(`\n✅ Monitoring cycle completed. Processed ${disapprovedAds.length} ads across all campaigns`);
+      console.log(`\n✅ Monitoring cycle completed:`);
+      console.log(`   📊 Processed: ${processedCount} ads`);
+      console.log(`   ⏭️  Skipped: ${skippedCount} ads (resource limits, unsupported types, etc.)`);
+      console.log(`   ❌ Errors: ${errorCount} ads`);
+      console.log(`   📈 Total: ${disapprovedAds.length} ads across all campaigns`);
       
     } catch (error) {
       console.error('❌ Error in monitoring cycle:', error);
