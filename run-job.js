@@ -1,4 +1,5 @@
 const GoogleAdsAgent = require('./index.js');
+const express = require('express');
 
 async function main() {
   console.log('🚀 Starting Google Ads Monitoring Job...');
@@ -49,7 +50,7 @@ async function main() {
     // Only run a single monitoring cycle and exit
     await agent.runMonitoringCycle(customerId);
     console.log('✅ Job completed successfully');
-    process.exit(0);
+    return { success: true };
   } catch (error) {
     console.error('❌ Fatal error:', error);
     console.error('❌ Error stack:', error.stack);
@@ -60,9 +61,34 @@ async function main() {
       status: error.status,
       details: error.details
     });
-    process.exit(1);
+    throw error;
   }
 }
+
+// Create Express server for Cloud Run
+const app = express();
+const port = process.env.PORT || 8080;
+
+app.get('/', (req, res) => {
+  res.send('Google Ads Monitoring Agent is running');
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`🚀 Server listening on port ${port}`);
+  
+  // Run the monitoring cycle when the server starts
+  main().then(result => {
+    console.log('✅ Monitoring cycle completed successfully');
+  }).catch(error => {
+    console.error('❌ Error in main:', error);
+    process.exit(1);
+  });
+});
 
 // Add unhandled error handlers
 process.on('uncaughtException', (error) => {
@@ -75,6 +101,4 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise);
   console.error('❌ Reason:', reason);
   process.exit(1);
-});
-
-main(); 
+}); 

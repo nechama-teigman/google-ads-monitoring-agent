@@ -106,3 +106,62 @@ If you're still having issues after following this guide:
 1. Share the exact error messages from Cloud Run logs
 2. Include the environment variable check results
 3. Note any specific error codes or status messages 
+
+---
+
+## Here’s how to fix it:
+
+1. **Change to your project directory:**
+```powershell
+cd "$HOME\OneDrive\Documents\VisaGo Ads"
+```
+or, if you’re already in PowerShell:
+```powershell
+cd "C:\Users\necha\OneDrive\Documents\VisaGo Ads"
+```
+
+2. **List the files to confirm:**
+```powershell
+ls
+```
+You should see `index.js`, `package.json`, etc.
+
+3. **Run the agent:**
+```powershell
+node index.js
+```
+or
+```powershell
+npm run dev
+```
+
+---
+
+**Summary:**  
+You must be in the `VisaGo Ads` directory to run your agent locally.  
+Let me know if you need help navigating there! 
+
+---
+
+## To run your agent locally (all night):
+
+1. **Make sure you are in:**
+   ```
+   C:\Users\necha\OneDrive\Documents\VisaGo Ads
+   ```
+
+2. **Run:**
+   ```powershell
+   node index.js
+   ```
+   or
+   ```powershell
+   npm run dev
+   ```
+
+3. **Leave the terminal open and keep your computer awake.**
+
+---
+
+**You are ready to go!**  
+If you see any errors when running `node index.js` from this directory, paste them here and I’ll help you debug. Otherwise, your agent will run locally as long as your computer is on and awake! 

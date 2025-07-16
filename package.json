@@ -9,8 +9,9 @@
     "deploy": "echo 'Ready for cloud deployment'"
   },
   "dependencies": {
-    "google-ads-api": "^20.0.1",
     "dotenv": "^17.0.1",
+    "express": "^5.1.0",
+    "google-ads-api": "^20.0.1",
     "openai": "^4.0.0"
   },
   "engines": {

@@ -7,6 +7,7 @@ const path = require('path');
 require('dotenv').config();
 const { OpenAI } = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const express = require('express');
 
 class GoogleAdsAgent {
   constructor(dryRun = true) {
@@ -452,10 +453,10 @@ async function main() {
     const customerId = '2080307721'; // Your sub account (208-030-7721)
     
     // Run once to check all campaigns
-    // await agent.runMonitoringCycle(customerId);
+    await agent.runMonitoringCycle(customerId);
     
-    // Or start continuous monitoring for ALL campaigns (every 60 minutes)
-    await agent.startMonitoring(customerId, 60);
+    // For Cloud Run, we don't start continuous monitoring
+    // The service will be called by Cloud Scheduler instead
     
   } catch (error) {
     console.error('❌ Fatal error:', error);
@@ -463,9 +464,32 @@ async function main() {
   }
 }
 
+// Create Express server for Cloud Run
+const app = express();
+const port = process.env.PORT || 8080;
+
+app.get('/', (req, res) => {
+  res.send('Google Ads Monitoring Agent is running');
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`🚀 Server listening on port ${port}`);
+  
+  // Run the monitoring cycle when the server starts
+  main().catch(error => {
+    console.error('❌ Error in main:', error);
+    process.exit(1);
+  });
+});
+
 // Run if this file is executed directly
 if (require.main === module) {
-  main();
+  // This will be handled by the Express server above
 }
 
 module.exports = GoogleAdsAgent;
