@@ -244,6 +244,7 @@ class GoogleAdsAgent {
   }
 
   async createAdDuplicate(customerId, originalAd) {
+    console.log(`🔧 Step 2a: Getting ad details for ad ${originalAd.ad_group_ad.ad.id}...`);
     // Get full ad details first
     const adDetails = await this.getAdDetails(customerId, originalAd.ad_group_ad.resource_name);
     if (this.dryRun) {
@@ -252,6 +253,7 @@ class GoogleAdsAgent {
     }
     const adGroupId = originalAd.ad_group.id;
     
+    console.log(`🔧 Step 2b: Counting enabled ads in ad group ${adGroupId}...`);
     // Check enabled ad count before creating
     const enabledAdCount = await this.countEnabledAdsInAdGroup(customerId, adGroupId);
     console.log(`📊 Ad group ${adGroupId} currently has ${enabledAdCount} enabled ads`);
@@ -262,6 +264,7 @@ class GoogleAdsAgent {
       return { resource_name: '[SKIPPED] Ad group at limit' };
     }
     
+    console.log(`🔧 Step 2c: Preparing ad data for duplication...`);
     const originalAdData = adDetails.ad_group_ad.ad;
     if (this.dryRun) {
       console.log(`[DRY RUN] originalAdData for ad ID ${originalAd.ad_group_ad.ad.id}:`);
@@ -270,6 +273,7 @@ class GoogleAdsAgent {
     const preservedUrls = originalAdData.final_urls;
     let newAd = {};
     if (originalAdData.type === 'EXPANDED_TEXT_AD' || originalAdData.type === 3) {
+      console.log(`🔧 Step 2d: Creating expanded text ad...`);
       newAd = {
         expanded_text_ad: {
           headline_part1: originalAdData.expanded_text_ad.headline_part1,
@@ -279,6 +283,7 @@ class GoogleAdsAgent {
         final_urls: preservedUrls
       };
     } else if (originalAdData.type === 'RESPONSIVE_SEARCH_AD' || originalAdData.type === 15) {
+      console.log(`🔧 Step 2e: Creating responsive search ad...`);
       newAd = {
         responsive_search_ad: {
           headlines: originalAdData.responsive_search_ad.headlines.map(h => {
@@ -316,6 +321,7 @@ class GoogleAdsAgent {
       return { resource_name: '[DRY RUN] Not created' };
     }
     
+    console.log(`🔧 Step 2f: Creating ad via API...`);
     await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     try {
@@ -469,6 +475,7 @@ class GoogleAdsAgent {
     
     try {
       // Find all disapproved ads across all campaigns
+      console.log(`🔍 Step 1: Finding all disapproved ads...`);
       const disapprovedAds = await this.findAllDisapprovedAds(customerId);
       
       console.log(`📊 Processing ${disapprovedAds.length} ads (with improved error handling)`);
@@ -483,9 +490,11 @@ class GoogleAdsAgent {
         
         console.log(`\n📋 Processing disapproved ad in "${campaignName}" > "${adGroupName}"`);
         console.log(`   Ad ID: ${ad.ad_group_ad.ad.id}`);
+        console.log(`   Ad Group ID: ${ad.ad_group.id}`);
+        console.log(`   Ad Resource Name: ${ad.ad_group_ad.resource_name}`);
         
         try {
-          console.log(`🔧 Starting to create duplicate for ad ${ad.ad_group_ad.ad.id}...`);
+          console.log(`🔧 Step 2: Getting ad details for ad ${ad.ad_group_ad.ad.id}...`);
           // Create duplicate
           const duplicateResult = await this.createAdDuplicate(customerId, ad);
           
@@ -499,7 +508,7 @@ class GoogleAdsAgent {
           console.log(`✅ Successfully created duplicate for ad ${ad.ad_group_ad.ad.id}`);
           processedCount++;
           
-          console.log(`🔧 Starting to pause original ad ${ad.ad_group_ad.ad.id}...`);
+          console.log(`🔧 Step 3: Pausing original ad ${ad.ad_group_ad.ad.id}...`);
           // IMPORTANT: Pause the original disapproved ad to stay within 3-ad limit
           await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
           console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
@@ -588,15 +597,49 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
+// Cloud Scheduler endpoint - this is what Cloud Scheduler will call
+app.get('/run-monitoring', async (req, res) => {
+  console.log('🔄 Cloud Scheduler triggered monitoring cycle');
+  
+  try {
+    const dryRun = false; // Set to false for production
+    const agent = new GoogleAdsAgent(dryRun);
+    
+    await agent.initialize();
+    
+    // Replace with your actual customer ID (sub account)
+    const customerId = '2080307721'; // Your sub account (208-030-7721)
+    
+    // Run the monitoring cycle
+    await agent.runMonitoringCycle(customerId);
+    
+    console.log('✅ Monitoring cycle completed successfully');
+    res.json({ 
+      status: 'success', 
+      message: 'Monitoring cycle completed',
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error in monitoring cycle:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`🚀 Server listening on port ${port}`);
+  console.log(`📋 Available endpoints:`);
+  console.log(`   - GET / - Health check`);
+  console.log(`   - GET /health - Detailed health status`);
+  console.log(`   - GET /run-monitoring - Trigger monitoring cycle (for Cloud Scheduler)`);
   
-  // Run the monitoring cycle when the server starts
-  main().catch(error => {
-    console.error('❌ Error in main:', error);
-    process.exit(1);
-  });
+  // Don't run monitoring cycle on startup - let Cloud Scheduler trigger it
+  console.log(`⏰ Monitoring cycle will be triggered by Cloud Scheduler`);
 });
 
 // Run if this file is executed directly
