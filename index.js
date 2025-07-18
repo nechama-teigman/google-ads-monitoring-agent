@@ -594,7 +594,21 @@ app.get('/', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  // Check if we have the required credentials
+  const requiredEnvVars = [
+    'GOOGLE_ADS_CLIENT_ID',
+    'GOOGLE_ADS_CLIENT_SECRET', 
+    'GOOGLE_ADS_DEVELOPER_TOKEN',
+    'GOOGLE_ADS_REFRESH_TOKEN'
+  ];
+  
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  
+  res.json({ 
+    status: missingVars.length > 0 ? 'unhealthy' : 'healthy', 
+    timestamp: new Date().toISOString(),
+    missingCredentials: missingVars.length > 0 ? missingVars : null
+  });
 });
 
 // Cloud Scheduler endpoint - this is what Cloud Scheduler will call
@@ -602,6 +616,25 @@ app.get('/run-monitoring', async (req, res) => {
   console.log('🔄 Cloud Scheduler triggered monitoring cycle');
   
   try {
+    // Check if we have the required credentials
+    const requiredEnvVars = [
+      'GOOGLE_ADS_CLIENT_ID',
+      'GOOGLE_ADS_CLIENT_SECRET', 
+      'GOOGLE_ADS_DEVELOPER_TOKEN',
+      'GOOGLE_ADS_REFRESH_TOKEN'
+    ];
+    
+    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+      console.error('❌ Missing required environment variables:', missingVars);
+      return res.status(500).json({ 
+        status: 'error', 
+        message: `Missing required environment variables: ${missingVars.join(', ')}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     const dryRun = false; // Set to false for production
     const agent = new GoogleAdsAgent(dryRun);
     
