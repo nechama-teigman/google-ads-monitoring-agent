@@ -247,24 +247,41 @@ class GoogleAdsAgent {
     await this.rateLimit();
     const customer = await this.getCustomerClient(customerId);
     const query = `
-      SELECT ad_group_ad.status, ad_group_ad.ad.id
+      SELECT 
+        ad_group_ad.status, 
+        ad_group_ad.ad.id,
+        ad_group_ad.policy_summary.approval_status
       FROM ad_group_ad
       WHERE ad_group.id = ${adGroupId}
         AND ad_group_ad.status = 'ENABLED'
     `;
     try {
       const results = await customer.query(query);
-      console.log(`🔍 Ad group ${adGroupId} has ${results.length} enabled ads:`);
-      results.forEach((ad, index) => {
-        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${ad.ad_group_ad.status}`);
+      
+      // Only count ads that are truly approved (status 1), not disapproved (status 2,3,4)
+      const approvedAds = results.filter(ad => {
+        const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
+        return approvalStatus === 1; // Only count APPROVED ads, not APPROVED_LIMITED/DISAPPROVED/UNDER_REVIEW
       });
       
-      // Special logging for ad groups with 0 enabled ads
-      if (results.length === 0) {
-        console.log(`🚨 AD GROUP ${adGroupId} HAS NO ENABLED ADS - THIS IS WHERE DUPLICATION SHOULD HAPPEN!`);
+      console.log(`🔍 Ad group ${adGroupId} has ${results.length} enabled ads total:`);
+      results.forEach((ad, index) => {
+        const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
+        const statusText = approvalStatus === 1 ? 'APPROVED' : 
+                          approvalStatus === 2 ? 'APPROVED_LIMITED' :
+                          approvalStatus === 3 ? 'DISAPPROVED' :
+                          approvalStatus === 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
+        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${ad.ad_group_ad.status}, Approval: ${approvalStatus} (${statusText})`);
+      });
+      
+      console.log(`✅ Ad group ${adGroupId} has ${approvedAds.length} TRULY APPROVED ads (can accept ${3 - approvedAds.length} more)`);
+      
+      // Special logging for ad groups with 0 approved ads
+      if (approvedAds.length === 0) {
+        console.log(`🚨 AD GROUP ${adGroupId} HAS NO APPROVED ADS - THIS IS WHERE DUPLICATION SHOULD HAPPEN!`);
       }
       
-      return results.length;
+      return approvedAds.length; // Return count of only approved ads
     } catch (error) {
       console.error('❌ Error counting ads in ad group:', error.message);
       if (error.message.includes('quota') || error.message.includes('limit')) {
