@@ -638,8 +638,15 @@ class GoogleAdsAgent {
         try {
           console.log(`🔧 Step 2: Pausing original disapproved ad ${ad.ad_group_ad.ad.id} first...`);
           // IMPORTANT: Pause the original disapproved ad FIRST to make room
-          await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
-          console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
+          try {
+            await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
+            console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
+          } catch (pauseError) {
+            console.error(`❌ FAILED TO PAUSE AD ${ad.ad_group_ad.ad.id}:`, pauseError);
+            console.error(`❌ Pause error message:`, pauseError.message);
+            console.error(`❌ Pause error stack:`, pauseError.stack);
+            throw pauseError; // Re-throw to stop processing this ad
+          }
           
           // Wait a moment for the pause to take effect
           console.log(`⏳ Waiting 5 seconds for pause to take effect...`);
