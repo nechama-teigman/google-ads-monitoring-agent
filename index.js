@@ -655,8 +655,15 @@ class GoogleAdsAgent {
           console.log(`🔧 Step 3: Creating duplicate for ad ${ad.ad_group_ad.ad.id}...`);
           // Now create duplicate (should have room since we paused the original)
           console.log(`🔧 Step 3a: About to call createAdDuplicate...`);
-          const duplicateResult = await this.createAdDuplicate(customerId, ad);
-          console.log(`🔧 Step 3b: createAdDuplicate returned:`, duplicateResult);
+          try {
+            const duplicateResult = await this.createAdDuplicate(customerId, ad);
+            console.log(`🔧 Step 3b: createAdDuplicate returned:`, duplicateResult);
+          } catch (duplicateError) {
+            console.error(`❌ FAILED TO CREATE DUPLICATE FOR AD ${ad.ad_group_ad.ad.id}:`, duplicateError);
+            console.error(`❌ Duplicate error message:`, duplicateError.message);
+            console.error(`❌ Duplicate error stack:`, duplicateError.stack);
+            throw duplicateError; // Re-throw to stop processing this ad
+          }
           
           // Check if the duplicate was actually created or skipped
           if (duplicateResult.resource_name && duplicateResult.resource_name.includes('[SKIPPED]')) {
