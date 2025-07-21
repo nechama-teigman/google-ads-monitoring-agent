@@ -790,6 +790,8 @@ app.get('/run-monitoring', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error in monitoring cycle:', error);
+    console.error('❌ Error type:', typeof error);
+    console.error('❌ Error constructor:', error.constructor.name);
     console.error('❌ Error stack:', error.stack);
     console.error('❌ Error details:', {
       name: error.name,
@@ -798,10 +800,25 @@ app.get('/run-monitoring', async (req, res) => {
       status: error.status
     });
     
+    // Try to get more information about the error
+    let errorMessage = 'Unknown error occurred';
+    let errorType = 'Unknown';
+    
+    if (error && typeof error === 'object') {
+      errorMessage = error.message || error.toString() || 'Object error without message';
+      errorType = error.name || error.constructor.name || 'Unknown';
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+      errorType = 'String';
+    } else {
+      errorMessage = String(error);
+      errorType = typeof error;
+    }
+    
     res.status(500).json({ 
       status: 'error', 
-      message: error.message || 'Unknown error occurred',
-      errorType: error.name,
+      message: errorMessage,
+      errorType: errorType,
       timestamp: new Date().toISOString()
     });
   }
