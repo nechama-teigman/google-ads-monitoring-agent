@@ -107,7 +107,7 @@ class GoogleAdsAgent {
           campaign.id,
           campaign.name,
           campaign.status,
-          ad_group_ad.status as ad_status
+          ad_group_ad.status
         FROM ad_group_ad 
         WHERE campaign.status IN ('ENABLED', 'PAUSED')
         AND ad_group.status IN ('ENABLED', 'PAUSED')
