@@ -757,6 +757,16 @@ app.get('/health', (req, res) => {
 app.get('/run-monitoring', async (req, res) => {
   console.log('🔄 Cloud Scheduler triggered monitoring cycle');
   
+  // Set a timeout for the response
+  const timeout = setTimeout(() => {
+    console.log('⚠️ Request timeout - sending partial response');
+    res.status(200).json({ 
+      status: 'timeout', 
+      message: 'Request timed out but script is still running',
+      timestamp: new Date().toISOString()
+    });
+  }, 30000); // 30 second timeout
+  
   try {
     // Check if we have the required credentials
     const requiredEnvVars = [
@@ -788,6 +798,7 @@ app.get('/run-monitoring', async (req, res) => {
     // Run the monitoring cycle
     await agent.runMonitoringCycle(customerId);
     
+    clearTimeout(timeout); // Clear the timeout since we're responding
     console.log('✅ Monitoring cycle completed successfully');
     res.json({ 
       status: 'success', 
@@ -796,6 +807,7 @@ app.get('/run-monitoring', async (req, res) => {
     });
     
   } catch (error) {
+    clearTimeout(timeout); // Clear the timeout since we're responding
     console.error('❌ Error in monitoring cycle:', error);
     console.error('❌ Error type:', typeof error);
     console.error('❌ Error constructor:', error.constructor.name);
