@@ -91,7 +91,7 @@ class GoogleAdsAgent {
     const customer = await this.getCustomerClient(customerId);
     
     try {
-      // Modified query to include PAUSED campaigns (since your campaigns are paused)
+      // Modified query to include PAUSED campaigns and PAUSED ads (since your campaigns are paused)
       const query = `
         SELECT 
           ad_group_ad.ad.id,
@@ -102,12 +102,13 @@ class GoogleAdsAgent {
           ad_group.name,
           campaign.id,
           campaign.name,
-          campaign.status
+          campaign.status,
+          ad_group_ad.status as ad_status
         FROM ad_group_ad 
         WHERE campaign.status IN ('ENABLED', 'PAUSED')
         AND ad_group.status IN ('ENABLED', 'PAUSED')
-        AND ad_group_ad.status = 'ENABLED'
-        LIMIT 50
+        AND ad_group_ad.status IN ('ENABLED', 'PAUSED')
+        LIMIT 100
       `;
 
       console.log('🔍 Executing query (including paused campaigns)...');
@@ -309,6 +310,7 @@ class GoogleAdsAgent {
   }
 
   async createAdDuplicate(customerId, originalAd) {
+    console.log(`🔧 CREATE AD DUPLICATE FUNCTION STARTED for ad ${originalAd.ad_group_ad.ad.id}`);
     console.log(`🔧 Step 2a: Getting ad details for ad ${originalAd.ad_group_ad.ad.id}...`);
     // Get full ad details first
     const adDetails = await this.getAdDetails(customerId, originalAd.ad_group_ad.resource_name);
@@ -623,7 +625,9 @@ class GoogleAdsAgent {
           
           console.log(`🔧 Step 3: Creating duplicate for ad ${ad.ad_group_ad.ad.id}...`);
           // Now create duplicate (should have room since we paused the original)
+          console.log(`🔧 Step 3a: About to call createAdDuplicate...`);
           const duplicateResult = await this.createAdDuplicate(customerId, ad);
+          console.log(`🔧 Step 3b: createAdDuplicate returned:`, duplicateResult);
           
           // Check if the duplicate was actually created or skipped
           if (duplicateResult.resource_name && duplicateResult.resource_name.includes('[SKIPPED]')) {
