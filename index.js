@@ -790,9 +790,18 @@ app.get('/run-monitoring', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error in monitoring cycle:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      status: error.status
+    });
+    
     res.status(500).json({ 
       status: 'error', 
-      message: error.message,
+      message: error.message || 'Unknown error occurred',
+      errorType: error.name,
       timestamp: new Date().toISOString()
     });
   }
