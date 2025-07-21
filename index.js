@@ -134,8 +134,8 @@ class GoogleAdsAgent {
       console.log(`🔎 Looking for ads with DISAPPROVED status (3)...`);
       return results;
     } catch (error) {
-      console.error('❌ Error querying ads:', error.message);
-      if (error.message.includes('quota') || error.message.includes('limit')) {
+      console.error('❌ Error querying ads:', error.message || 'Unknown error');
+      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
         console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
         await this.sleep(60000);
         return this.getAllEnabledAds(customerId); // Retry once
