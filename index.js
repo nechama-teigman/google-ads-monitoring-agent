@@ -231,6 +231,12 @@ class GoogleAdsAgent {
       results.forEach((ad, index) => {
         console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${ad.ad_group_ad.status}`);
       });
+      
+      // Special logging for ad groups with 0 enabled ads
+      if (results.length === 0) {
+        console.log(`🚨 AD GROUP ${adGroupId} HAS NO ENABLED ADS - THIS IS WHERE DUPLICATION SHOULD HAPPEN!`);
+      }
+      
       return results.length;
     } catch (error) {
       console.error('❌ Error counting ads in ad group:', error.message);
@@ -492,6 +498,8 @@ class GoogleAdsAgent {
         console.log(`   Ad ID: ${ad.ad_group_ad.ad.id}`);
         console.log(`   Ad Group ID: ${ad.ad_group.id}`);
         console.log(`   Ad Resource Name: ${ad.ad_group_ad.resource_name}`);
+        console.log(`   Campaign ID: ${ad.campaign.id}`);
+        console.log(`   Ad Group Name: ${adGroupName}`);
         
         try {
           console.log(`🔧 Step 2: Getting ad details for ad ${ad.ad_group_ad.ad.id}...`);
