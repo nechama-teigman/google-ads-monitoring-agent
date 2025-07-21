@@ -159,10 +159,10 @@ class GoogleAdsAgent {
       const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
       // Google Ads approval status codes:
       // 1 = APPROVED
-      // 2 = APPROVED_LIMITED (limited by policy)  
+      // 2 = APPROVED_LIMITED (limited by policy)
       // 3 = DISAPPROVED
       // 4 = UNDER_REVIEW
-      const isDisapproved = approvalStatus === 3; // Only DISAPPROVED ads
+      const isDisapproved = approvalStatus === 3; // Only DISAPPROVED ads (approval_status = 3)
       
       if (isDisapproved) {
         console.log(`🔍 Found disapproved ad: Ad ID ${ad.ad_group_ad.ad.id}, Status ${approvalStatus}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);

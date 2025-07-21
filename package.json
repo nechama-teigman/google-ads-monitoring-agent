@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js",
+    "dev": "image.pngnode index.js",
     "deploy": "echo 'Ready for cloud deployment'"
   },
   "dependencies": {
