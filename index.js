@@ -565,13 +565,21 @@ class GoogleAdsAgent {
   }
 
   async pauseDisapprovedAd(customerId, adResourceName) {
+    console.log(`🔧 PAUSE FUNCTION STARTED for ad: ${adResourceName}`);
+    console.log(`🔧 Dry run mode: ${this.dryRun}`);
+    
     if (this.dryRun) {
       console.log(`[DRY RUN] Would pause ad: ${adResourceName}`);
       return;
     }
     
+    console.log(`🔧 About to rate limit...`);
     await this.rateLimit();
+    console.log(`🔧 Rate limiting completed for pause`);
+    
+    console.log(`🔧 Getting customer client...`);
     const customer = await this.getCustomerClient(customerId);
+    console.log(`🔧 Customer client obtained for pause`);
     
     try {
       const updateData = {
@@ -579,10 +587,12 @@ class GoogleAdsAgent {
         status: 'PAUSED'
       };
 
+      console.log(`🔧 About to call adGroupAds.update with:`, updateData);
       await customer.adGroupAds.update([updateData]);
       console.log(`⏸️  Paused disapproved ad: ${adResourceName}`);
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
+      console.error('❌ Full pause error:', error);
       
       // Handle quota limits specifically
       if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
