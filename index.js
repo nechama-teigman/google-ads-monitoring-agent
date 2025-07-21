@@ -161,7 +161,7 @@ class GoogleAdsAgent {
         console.log(`🔍 Found disapproved ad: Ad ID ${ad.ad_group_ad.ad.id}, Status ${approvalStatus}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
         
         // Special logging for Dubai visa ad groups
-        if (ad.ad_group.name.toLowerCase().includes('dubai visa')) {
+        if (ad.ad_group.name && ad.ad_group.name.toLowerCase().includes('dubai visa')) {
           console.log(`🇦🇪 DUBAI VISA AD GROUP FOUND: Ad ID ${ad.ad_group_ad.ad.id}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
         }
       }
@@ -185,7 +185,7 @@ class GoogleAdsAgent {
     // Filter to only campaigns with 'AMG' in the name (case-insensitive)
     const filteredCampaignGroups = {};
     Object.keys(campaignGroups).forEach(campaignKey => {
-      if (campaignKey.toLowerCase().includes('amg')) {
+      if (campaignKey && campaignKey.toLowerCase().includes('amg')) {
         filteredCampaignGroups[campaignKey] = campaignGroups[campaignKey];
       }
     });
@@ -250,7 +250,7 @@ class GoogleAdsAgent {
       return adDetails;
     } catch (error) {
       console.error('❌ Error getting ad details:', error.message);
-      if (error.message.includes('quota') || error.message.includes('limit')) {
+      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
         console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
         await this.sleep(60000);
         return this.getAdDetails(customerId, adGroupAdResourceName); // Retry once
@@ -300,7 +300,7 @@ class GoogleAdsAgent {
       return approvedAds.length; // Return count of only approved ads
     } catch (error) {
       console.error('❌ Error counting ads in ad group:', error.message);
-      if (error.message.includes('quota') || error.message.includes('limit')) {
+      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
         console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
         await this.sleep(60000);
         return this.countEnabledAdsInAdGroup(customerId, adGroupId); // Retry once
@@ -396,7 +396,7 @@ class GoogleAdsAgent {
     }
     
     // Log ad data for debugging (especially for Dubai visa ad groups)
-    if (originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
+    if (originalAd.ad_group.name && originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
       console.log(`🇦🇪 DUBAI VISA AD GROUP - Ad data being sent to API:`);
       console.log(`   Ad Type: ${originalAdData.type}`);
       console.log(`   Headlines: ${JSON.stringify(newAd.expanded_text_ad?.headline_part1 || newAd.responsive_search_ad?.headlines)}`);
@@ -428,7 +428,7 @@ class GoogleAdsAgent {
       console.error('❌ Error creating ad duplicate:', error && (error.message || error));
       
       // Log detailed error information for Dubai Visa ad groups
-      if (originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
+      if (originalAd.ad_group.name && originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
         console.error(`🇦🇪 DUBAI VISA - Detailed error analysis:`);
         console.error(`   Error message: ${error.message}`);
         console.error(`   Error code: ${error.code || 'N/A'}`);
