@@ -362,6 +362,28 @@ class GoogleAdsAgent {
     } catch (error) {
       console.error('❌ Error creating ad duplicate:', error && (error.message || error));
       
+      // Log detailed error information for Dubai Visa ad groups
+      if (originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
+        console.error(`🇦🇪 DUBAI VISA - Detailed error analysis:`);
+        console.error(`   Error message: ${error.message}`);
+        console.error(`   Error code: ${error.code || 'N/A'}`);
+        console.error(`   Error status: ${error.status || 'N/A'}`);
+        
+        // Log the full error details
+        if (error.errors && Array.isArray(error.errors)) {
+          console.error(`   API Errors:`);
+          error.errors.forEach((err, index) => {
+            console.error(`     ${index + 1}. ${err.message} (Code: ${err.code})`);
+            if (err.location) {
+              console.error(`        Location: ${err.location}`);
+            }
+            if (err.details) {
+              console.error(`        Details: ${JSON.stringify(err.details)}`);
+            }
+          });
+        }
+      }
+      
       // Handle specific resource limit errors
       if (error.message && error.message.includes('limit on the number of allowed resources')) {
         console.error('⚠️  Resource limit hit: Ad group cannot accept more ads');
