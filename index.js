@@ -309,11 +309,13 @@ class GoogleAdsAgent {
       newAd = {
         responsive_search_ad: {
           headlines: originalAdData.responsive_search_ad.headlines.map(h => {
+            // Only include text and pinned_field, exclude other immutable fields
             const obj = { text: h.text };
             if (h.pinned_field !== undefined && h.pinned_field !== null) obj.pinned_field = h.pinned_field;
             return obj;
           }),
           descriptions: originalAdData.responsive_search_ad.descriptions.map(d => {
+            // Only include text and pinned_field, exclude other immutable fields
             const obj = { text: d.text };
             if (d.pinned_field !== undefined && d.pinned_field !== null) obj.pinned_field = d.pinned_field;
             return obj;
@@ -341,9 +343,12 @@ class GoogleAdsAgent {
       console.log(`   Description: ${JSON.stringify(newAd.expanded_text_ad?.description || newAd.responsive_search_ad?.descriptions)}`);
       console.log(`   Final URLs: ${JSON.stringify(preservedUrls)}`);
     }
+    // Clean the ad object to remove any immutable fields
+    const cleanAd = JSON.parse(JSON.stringify(newAd));
+    
     const newAdGroupAd = {
       ad_group: `customers/${customerId}/adGroups/${adGroupId}`,
-      ad: newAd,
+      ad: cleanAd,
       status: 'ENABLED'
     };
     if (this.dryRun) {
