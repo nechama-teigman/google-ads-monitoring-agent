@@ -580,24 +580,28 @@ class GoogleAdsAgent {
         console.log(`   Ad Group Name: ${adGroupName}`);
         
         try {
-          console.log(`🔧 Step 2: Getting ad details for ad ${ad.ad_group_ad.ad.id}...`);
-          // Create duplicate
+          console.log(`🔧 Step 2: Pausing original disapproved ad ${ad.ad_group_ad.ad.id} first...`);
+          // IMPORTANT: Pause the original disapproved ad FIRST to make room
+          await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
+          console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
+          
+          // Wait a moment for the pause to take effect
+          console.log(`⏳ Waiting 5 seconds for pause to take effect...`);
+          await this.sleep(5000);
+          
+          console.log(`🔧 Step 3: Creating duplicate for ad ${ad.ad_group_ad.ad.id}...`);
+          // Now create duplicate (should have room since we paused the original)
           const duplicateResult = await this.createAdDuplicate(customerId, ad);
           
           // Check if the duplicate was actually created or skipped
           if (duplicateResult.resource_name && duplicateResult.resource_name.includes('[SKIPPED]')) {
             console.log(`⏭️  Skipped ad ${ad.ad_group_ad.ad.id}: ${duplicateResult.resource_name}`);
             skippedCount++;
-            continue; // Skip pausing the original if we couldn't create a duplicate
+            continue;
           }
           
           console.log(`✅ Successfully created duplicate for ad ${ad.ad_group_ad.ad.id}`);
           processedCount++;
-          
-          console.log(`🔧 Step 3: Pausing original ad ${ad.ad_group_ad.ad.id}...`);
-          // IMPORTANT: Pause the original disapproved ad to stay within 3-ad limit
-          await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
-          console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
           
           // Add longer delay to avoid rate limits
           console.log(`⏳ Waiting 10 seconds before next operation...`);
