@@ -141,6 +141,11 @@ class GoogleAdsAgent {
       
       if (isDisapproved) {
         console.log(`🔍 Found disapproved ad: Ad ID ${ad.ad_group_ad.ad.id}, Status ${approvalStatus}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
+        
+        // Special logging for Dubai visa ad groups
+        if (ad.ad_group.name.toLowerCase().includes('dubai visa')) {
+          console.log(`🇦🇪 DUBAI VISA AD GROUP FOUND: Ad ID ${ad.ad_group_ad.ad.id}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
+        }
       }
       
       return isDisapproved;
@@ -326,6 +331,15 @@ class GoogleAdsAgent {
     if (this.dryRun) {
       console.log(`[DRY RUN] newAd for ad ID ${originalAd.ad_group_ad.ad.id}:`);
       console.dir(newAd, { depth: null });
+    }
+    
+    // Log ad data for debugging (especially for Dubai visa ad groups)
+    if (originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
+      console.log(`🇦🇪 DUBAI VISA AD GROUP - Ad data being sent to API:`);
+      console.log(`   Ad Type: ${originalAdData.type}`);
+      console.log(`   Headlines: ${JSON.stringify(newAd.expanded_text_ad?.headline_part1 || newAd.responsive_search_ad?.headlines)}`);
+      console.log(`   Description: ${JSON.stringify(newAd.expanded_text_ad?.description || newAd.responsive_search_ad?.descriptions)}`);
+      console.log(`   Final URLs: ${JSON.stringify(preservedUrls)}`);
     }
     const newAdGroupAd = {
       ad_group: `customers/${customerId}/adGroups/${adGroupId}`,
@@ -538,7 +552,16 @@ class GoogleAdsAgent {
           
         } catch (error) {
           console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message);
+          console.error(`❌ Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
+          console.error(`❌ Ad Group ID: ${ad.ad_group.id}, Ad ID: ${ad.ad_group_ad.ad.id}`);
           console.error(`❌ Full error object:`, error);
+          
+          // Log specific error details for debugging
+          if (error.message && error.message.includes('invalid argument')) {
+            console.error(`🔍 INVALID ARGUMENT ERROR - This might be a data format issue`);
+            console.error(`🔍 Check if ad data is properly formatted for API call`);
+          }
+          
           errorCount++;
           
           // Continue with next ad instead of stopping
