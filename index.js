@@ -137,7 +137,7 @@ class GoogleAdsAgent {
       // 2 = APPROVED_LIMITED (limited by policy)  
       // 3 = DISAPPROVED
       // 4 = UNDER_REVIEW
-      const isDisapproved = approvalStatus === 2 || approvalStatus === 3 || approvalStatus === 4;
+      const isDisapproved = approvalStatus === 3; // Only DISAPPROVED ads
       
       if (isDisapproved) {
         console.log(`🔍 Found disapproved ad: Ad ID ${ad.ad_group_ad.ad.id}, Status ${approvalStatus}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
@@ -182,16 +182,14 @@ class GoogleAdsAgent {
     });
 
     // Show approval status breakdown
-    const statusCounts = { 2: 0, 3: 0, 4: 0 };
+    const statusCounts = { 3: 0 };
     filteredDisapprovedAds.forEach(ad => {
       const status = ad.ad_group_ad?.policy_summary?.approval_status;
       if (statusCounts[status] !== undefined) statusCounts[status]++;
     });
     
     console.log(`📊 Status breakdown:`);
-    if (statusCounts[2] > 0) console.log(`   - ${statusCounts[2]} ads with limited approval (status 2)`);
     if (statusCounts[3] > 0) console.log(`   - ${statusCounts[3]} ads disapproved (status 3)`);
-    if (statusCounts[4] > 0) console.log(`   - ${statusCounts[4]} ads under review (status 4)`);
 
     return filteredDisapprovedAds;
   }
