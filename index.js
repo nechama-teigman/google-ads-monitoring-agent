@@ -588,7 +588,12 @@ class GoogleAdsAgent {
       };
 
       console.log(`🔧 About to call adGroupAds.update with:`, updateData);
-      await customer.adGroupAds.update([updateData]);
+      console.log(`🔧 Customer object type:`, typeof customer);
+      console.log(`🔧 Customer adGroupAds type:`, typeof customer.adGroupAds);
+      console.log(`🔧 Customer adGroupAds.update type:`, typeof customer.adGroupAds.update);
+      
+      const result = await customer.adGroupAds.update([updateData]);
+      console.log(`🔧 Update result:`, result);
       console.log(`⏸️  Paused disapproved ad: ${adResourceName}`);
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
