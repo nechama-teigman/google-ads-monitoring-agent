@@ -87,7 +87,7 @@ class GoogleAdsAgent {
   }
 
   async getAllEnabledAds(customerId) {
-    console.log('🔧 getAllEnabledAds STARTED for customer:', customerId);
+          console.log('🔧 getAllEnabledAds STARTED for customer:', customerId, 'VERSION 2');
     await this.rateLimit();
     console.log('🔧 Rate limiting completed');
     
