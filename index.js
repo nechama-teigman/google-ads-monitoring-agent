@@ -208,9 +208,11 @@ class GoogleAdsAgent {
           ad_group_ad.ad.expanded_text_ad.headline_part1,
           ad_group_ad.ad.expanded_text_ad.headline_part2,
           ad_group_ad.ad.expanded_text_ad.description,
+          ad_group_ad.ad.expanded_text_ad.description2,
           ad_group_ad.ad.responsive_search_ad.headlines,
           ad_group_ad.ad.responsive_search_ad.descriptions,
           ad_group_ad.ad.final_urls,
+          ad_group_ad.ad.final_mobile_urls,
           ad_group_ad.policy_summary.policy_topic_entries,
           ad_group.id
         FROM ad_group_ad 
@@ -218,7 +220,18 @@ class GoogleAdsAgent {
       `;
 
       const results = await customer.query(query);
-      return results[0];
+      const adDetails = results[0];
+      
+      // Log the retrieved ad details for debugging
+      if (adDetails && adDetails.ad_group_ad && adDetails.ad_group_ad.ad) {
+        console.log(`🔍 Retrieved ad details for ad ${adDetails.ad_group_ad.ad.id}:`);
+        console.log(`   Type: ${adDetails.ad_group_ad.ad.type}`);
+        console.log(`   Headlines: ${JSON.stringify(adDetails.ad_group_ad.ad.expanded_text_ad?.headline_part1 || adDetails.ad_group_ad.ad.responsive_search_ad?.headlines)}`);
+        console.log(`   Description: ${JSON.stringify(adDetails.ad_group_ad.ad.expanded_text_ad?.description || adDetails.ad_group_ad.ad.responsive_search_ad?.descriptions)}`);
+        console.log(`   Final URLs: ${JSON.stringify(adDetails.ad_group_ad.ad.final_urls)}`);
+      }
+      
+      return adDetails;
     } catch (error) {
       console.error('❌ Error getting ad details:', error.message);
       if (error.message.includes('quota') || error.message.includes('limit')) {
@@ -292,7 +305,20 @@ class GoogleAdsAgent {
       console.log(`[DRY RUN] originalAdData for ad ID ${originalAd.ad_group_ad.ad.id}:`);
       console.dir(originalAdData, { depth: null });
     }
-    const preservedUrls = originalAdData.final_urls;
+    
+    // Check if we have valid ad data
+    if (!originalAdData) {
+      console.error(`❌ No ad data retrieved for ad ${originalAd.ad_group_ad.ad.id}`);
+      return { resource_name: '[SKIPPED] No ad data' };
+    }
+    
+    const preservedUrls = originalAdData.final_urls || [];
+    
+    // Validate that we have the required data
+    if (!preservedUrls || preservedUrls.length === 0) {
+      console.error(`❌ No final URLs found for ad ${originalAd.ad_group_ad.ad.id}`);
+      return { resource_name: '[SKIPPED] No final URLs' };
+    }
     let newAd = {};
     if (originalAdData.type === 'EXPANDED_TEXT_AD' || originalAdData.type === 3) {
       console.log(`🔧 Step 2d: Creating expanded text ad...`);
