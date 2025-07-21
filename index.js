@@ -87,8 +87,12 @@ class GoogleAdsAgent {
   }
 
   async getAllEnabledAds(customerId) {
+    console.log('🔧 getAllEnabledAds STARTED for customer:', customerId);
     await this.rateLimit();
+    console.log('🔧 Rate limiting completed');
+    
     const customer = await this.getCustomerClient(customerId);
+    console.log('🔧 Customer client obtained');
     
     try {
       // Modified query to include PAUSED campaigns and PAUSED ads (since your campaigns are paused)
@@ -112,7 +116,10 @@ class GoogleAdsAgent {
       `;
 
       console.log('🔍 Executing query (including paused campaigns)...');
+      console.log('🔍 Query:', query);
       const results = await customer.query(query);
+      console.log('🔧 Query executed successfully, results type:', typeof results);
+      console.log('🔧 Results length:', results ? results.length : 'undefined');
       console.log(`📊 Found ${results.length} enabled ads in enabled/paused campaigns`);
       
       // Debug: Show approval status breakdown for all ads
