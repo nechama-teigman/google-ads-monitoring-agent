@@ -113,7 +113,24 @@ class GoogleAdsAgent {
       console.log('🔍 Executing query (including paused campaigns)...');
       const results = await customer.query(query);
       console.log(`📊 Found ${results.length} enabled ads in enabled/paused campaigns`);
-      console.log(`🔎 Looking for ads with DISAPPROVED or UNDER_REVIEW status...`);
+      
+      // Debug: Show approval status breakdown for all ads
+      const statusBreakdown = {};
+      results.forEach(ad => {
+        const status = ad.ad_group_ad?.policy_summary?.approval_status;
+        statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+      });
+      
+      console.log(`🔍 Approval status breakdown for all ads:`);
+      Object.keys(statusBreakdown).forEach(status => {
+        const statusText = status == 1 ? 'APPROVED' : 
+                          status == 2 ? 'APPROVED_LIMITED' :
+                          status == 3 ? 'DISAPPROVED' :
+                          status == 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
+        console.log(`   Status ${status} (${statusText}): ${statusBreakdown[status]} ads`);
+      });
+      
+      console.log(`🔎 Looking for ads with DISAPPROVED status (3)...`);
       return results;
     } catch (error) {
       console.error('❌ Error querying ads:', error.message);
