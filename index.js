@@ -137,7 +137,13 @@ class GoogleAdsAgent {
       // 2 = APPROVED_LIMITED (limited by policy)  
       // 3 = DISAPPROVED
       // 4 = UNDER_REVIEW
-      return approvalStatus === 2 || approvalStatus === 3 || approvalStatus === 4;
+      const isDisapproved = approvalStatus === 2 || approvalStatus === 3 || approvalStatus === 4;
+      
+      if (isDisapproved) {
+        console.log(`🔍 Found disapproved ad: Ad ID ${ad.ad_group_ad.ad.id}, Status ${approvalStatus}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
+      }
+      
+      return isDisapproved;
     });
 
     // Group by campaign for better reporting
@@ -163,6 +169,9 @@ class GoogleAdsAgent {
     const filteredDisapprovedAds = Object.values(filteredCampaignGroups).flat();
 
     console.log(`🔍 Found ${filteredDisapprovedAds.length} ads with policy issues across ${Object.keys(filteredCampaignGroups).length} AMG campaigns:`);
+    console.log(`📊 Total ads queried: ${allAds.length}`);
+    console.log(`📊 Disapproved ads found: ${disapprovedAds.length}`);
+    console.log(`📊 AMG campaign ads: ${filteredDisapprovedAds.length}`);
     Object.keys(filteredCampaignGroups).forEach(campaignKey => {
       console.log(`   📁 ${campaignKey}: ${filteredCampaignGroups[campaignKey].length} ads`);
     });
@@ -269,6 +278,8 @@ class GoogleAdsAgent {
       console.warn(`⚠️  This ad group cannot accept more ads. Consider pausing some existing ads first.`);
       return { resource_name: '[SKIPPED] Ad group at limit' };
     }
+    
+    console.log(`✅ Ad group ${adGroupId} has ${enabledAdCount} enabled ads - proceeding with duplication`);
     
     console.log(`🔧 Step 2c: Preparing ad data for duplication...`);
     const originalAdData = adDetails.ad_group_ad.ad;
