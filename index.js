@@ -600,6 +600,26 @@ class GoogleAdsAgent {
       const result = await customer.adGroupAds.update([updateData]);
       console.log(`🔧 Update result:`, result);
       console.log(`⏸️  Paused disapproved ad: ${adResourceName}`);
+      
+      // DEBUG: Verify the pause actually worked by checking the ad status
+      console.log(`🔍 DEBUG: Verifying pause worked by checking ad status...`);
+      await this.sleep(2000); // Wait 2 seconds
+      const verifyQuery = `
+        SELECT ad_group_ad.status, ad_group_ad.ad.id
+        FROM ad_group_ad 
+        WHERE ad_group_ad.resource_name = '${adResourceName}'
+      `;
+      const verifyResult = await customer.query(verifyQuery);
+      if (verifyResult.length > 0) {
+        console.log(`🔍 DEBUG: Ad status after pause attempt: ${verifyResult[0].ad_group_ad.status}`);
+        if (verifyResult[0].ad_group_ad.status === 'PAUSED') {
+          console.log(`✅ DEBUG: Pause verification successful - ad is actually paused`);
+        } else {
+          console.log(`❌ DEBUG: Pause verification failed - ad status is still ${verifyResult[0].ad_group_ad.status}`);
+        }
+      } else {
+        console.log(`❌ DEBUG: Could not verify ad status - ad not found`);
+      }
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
       console.error('❌ Full pause error:', error);
