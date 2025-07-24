@@ -287,9 +287,9 @@ class GoogleAdsAgent {
     try {
       const results = await customer.query(query);
       
-      // Count ALL enabled ads (Google Ads counts all enabled ads toward the 3-ad limit)
-      const enabledAds = results.filter(ad => {
-        return ad.ad_group_ad?.status === 'ENABLED';
+      // Count ALL ads regardless of status (Google Ads counts ALL ads toward the 3-ad limit)
+      const allAds = results.filter(ad => {
+        return ad.ad_group_ad?.status === 'ENABLED' || ad.ad_group_ad?.status === 'PAUSED';
       });
       
       console.log(`🔍 Ad group ${adGroupId} has ${results.length} enabled ads total:`);
@@ -302,14 +302,14 @@ class GoogleAdsAgent {
         console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${ad.ad_group_ad.status}, Approval: ${approvalStatus} (${statusText})`);
       });
       
-      console.log(`✅ Ad group ${adGroupId} has ${enabledAds.length} ENABLED ads (can accept ${3 - enabledAds.length} more)`);
+      console.log(`✅ Ad group ${adGroupId} has ${allAds.length} TOTAL ads (can accept ${3 - allAds.length} more)`);
       
-      // Special logging for ad groups with 3 enabled ads
-      if (enabledAds.length >= 3) {
-        console.log(`🚨 AD GROUP ${adGroupId} HAS ${enabledAds.length} ENABLED ADS - AT LIMIT!`);
+      // Special logging for ad groups with 3 total ads
+      if (allAds.length >= 3) {
+        console.log(`🚨 AD GROUP ${adGroupId} HAS ${allAds.length} TOTAL ADS - AT LIMIT!`);
       }
       
-      return enabledAds.length; // Return count of ALL enabled ads
+      return allAds.length; // Return count of ALL ads (enabled + paused)
     } catch (error) {
       console.error('❌ Error counting ads in ad group:', error.message);
       if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
