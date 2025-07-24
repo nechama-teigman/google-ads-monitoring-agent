@@ -437,12 +437,12 @@ class GoogleAdsAgent {
       console.log(`✅ Created duplicate ad: ${response.results[0].resource_name}`);
       return response.results[0];
     } catch (error) {
-      console.error('❌ Error creating ad duplicate:', error && (error.message || error));
+      console.error('❌ Error creating ad duplicate:', error.message || error);
       
       // Log detailed error information for Dubai Visa ad groups
       if (originalAd.ad_group.name && originalAd.ad_group.name.toLowerCase().includes('dubai visa')) {
         console.error(`🇦🇪 DUBAI VISA - Detailed error analysis:`);
-        console.error(`   Error message: ${error.message}`);
+        console.error(`   Error message: ${error.message || 'No message'}`);
         console.error(`   Error code: ${error.code || 'N/A'}`);
         console.error(`   Error status: ${error.status || 'N/A'}`);
         
@@ -450,7 +450,7 @@ class GoogleAdsAgent {
         if (error.errors && Array.isArray(error.errors)) {
           console.error(`   API Errors:`);
           error.errors.forEach((err, index) => {
-            console.error(`     ${index + 1}. ${err.message} (Code: ${err.code})`);
+            console.error(`     ${index + 1}. ${err.message || 'No message'} (Code: ${err.code || 'N/A'})`);
             if (err.location) {
               console.error(`        Location: ${err.location}`);
             }
@@ -596,7 +596,7 @@ class GoogleAdsAgent {
         }
       };
 
-      console.log(`🔧 About to call adGroupAds.update with:`, updateData);
+      console.log(`🔧 About to call adGroupAds.update with:`, JSON.stringify(updateData, null, 2));
       console.log(`🔧 DEBUG: Trying to pause ad with resource_name: ${adResourceName}`);
       console.log(`🔧 DEBUG: Using status field: 'PAUSED'`);
       console.log(`🔧 Customer object type:`, typeof customer);
@@ -719,7 +719,7 @@ class GoogleAdsAgent {
           await this.sleep(10000);
           
         } catch (error) {
-          console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message);
+          console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message || error);
           console.error(`❌ Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
           console.error(`❌ Ad Group ID: ${ad.ad_group.id}, Ad ID: ${ad.ad_group_ad.ad.id}`);
           console.error(`❌ Full error object:`, error);
