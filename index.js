@@ -287,10 +287,9 @@ class GoogleAdsAgent {
     try {
       const results = await customer.query(query);
       
-      // Only count ads that are truly approved (status 1), not disapproved (status 2,3,4)
-      const approvedAds = results.filter(ad => {
-        const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
-        return approvalStatus === 1; // Only count APPROVED ads, not APPROVED_LIMITED/DISAPPROVED/UNDER_REVIEW
+      // Count ALL enabled ads (Google Ads counts all enabled ads toward the 3-ad limit)
+      const enabledAds = results.filter(ad => {
+        return ad.ad_group_ad?.status === 'ENABLED';
       });
       
       console.log(`🔍 Ad group ${adGroupId} has ${results.length} enabled ads total:`);
@@ -303,14 +302,14 @@ class GoogleAdsAgent {
         console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${ad.ad_group_ad.status}, Approval: ${approvalStatus} (${statusText})`);
       });
       
-      console.log(`✅ Ad group ${adGroupId} has ${approvedAds.length} TRULY APPROVED ads (can accept ${3 - approvedAds.length} more)`);
+      console.log(`✅ Ad group ${adGroupId} has ${enabledAds.length} ENABLED ads (can accept ${3 - enabledAds.length} more)`);
       
-      // Special logging for ad groups with 0 approved ads
-      if (approvedAds.length === 0) {
-        console.log(`🚨 AD GROUP ${adGroupId} HAS NO APPROVED ADS - THIS IS WHERE DUPLICATION SHOULD HAPPEN!`);
+      // Special logging for ad groups with 3 enabled ads
+      if (enabledAds.length >= 3) {
+        console.log(`🚨 AD GROUP ${adGroupId} HAS ${enabledAds.length} ENABLED ADS - AT LIMIT!`);
       }
       
-      return approvedAds.length; // Return count of only approved ads
+      return enabledAds.length; // Return count of ALL enabled ads
     } catch (error) {
       console.error('❌ Error counting ads in ad group:', error.message);
       if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
@@ -657,6 +656,11 @@ class GoogleAdsAgent {
           // Wait a moment for the pause to take effect
           console.log(`⏳ Waiting 5 seconds for pause to take effect...`);
           await this.sleep(5000);
+          
+          // DEBUG: Check ad count after pausing
+          console.log(`🔍 DEBUG: Checking ad count in ad group ${ad.ad_group.id} after pausing...`);
+          const adCountAfterPause = await this.countEnabledAdsInAdGroup(customerId, ad.ad_group.id);
+          console.log(`🔍 DEBUG: Ad group ${ad.ad_group.id} now has ${adCountAfterPause} enabled ads after pausing`);
           
           console.log(`🔧 Step 3: Creating duplicate for ad ${ad.ad_group_ad.ad.id}...`);
           // Now create duplicate (should have room since we paused the original)
