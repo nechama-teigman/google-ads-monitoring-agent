@@ -587,12 +587,18 @@ class GoogleAdsAgent {
     console.log(`🔧 Customer client obtained for pause`);
     
     try {
+      // Try different field names for pausing ads
+      // Try the correct field name for pausing ads
       const updateData = {
         resource_name: adResourceName,
-        status: 'PAUSED'
+        ad_group_ad: {
+          status: 'PAUSED'
+        }
       };
 
       console.log(`🔧 About to call adGroupAds.update with:`, updateData);
+      console.log(`🔧 DEBUG: Trying to pause ad with resource_name: ${adResourceName}`);
+      console.log(`🔧 DEBUG: Using status field: 'PAUSED'`);
       console.log(`🔧 Customer object type:`, typeof customer);
       console.log(`🔧 Customer adGroupAds type:`, typeof customer.adGroupAds);
       console.log(`🔧 Customer adGroupAds.update type:`, typeof customer.adGroupAds.update);
@@ -605,17 +611,20 @@ class GoogleAdsAgent {
       console.log(`🔍 DEBUG: Verifying pause worked by checking ad status...`);
       await this.sleep(2000); // Wait 2 seconds
       const verifyQuery = `
-        SELECT ad_group_ad.status, ad_group_ad.ad.id
+        SELECT ad_group_ad.status, ad_group_ad.ad.id, ad_group_ad.resource_name
         FROM ad_group_ad 
         WHERE ad_group_ad.resource_name = '${adResourceName}'
       `;
       const verifyResult = await customer.query(verifyQuery);
       if (verifyResult.length > 0) {
-        console.log(`🔍 DEBUG: Ad status after pause attempt: ${verifyResult[0].ad_group_ad.status}`);
-        if (verifyResult[0].ad_group_ad.status === 'PAUSED') {
+        const adStatus = verifyResult[0].ad_group_ad.status;
+        console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus}`);
+        console.log(`🔍 DEBUG: Ad resource name: ${verifyResult[0].ad_group_ad.resource_name}`);
+        if (adStatus === 'PAUSED') {
           console.log(`✅ DEBUG: Pause verification successful - ad is actually paused`);
         } else {
-          console.log(`❌ DEBUG: Pause verification failed - ad status is still ${verifyResult[0].ad_group_ad.status}`);
+          console.log(`❌ DEBUG: Pause verification failed - ad status is still ${adStatus}`);
+          console.log(`🔍 DEBUG: This suggests the API call didn't work or we're using wrong field`);
         }
       } else {
         console.log(`❌ DEBUG: Could not verify ad status - ad not found`);
