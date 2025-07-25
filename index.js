@@ -618,7 +618,11 @@ class GoogleAdsAgent {
       console.log(`🔍 DEBUG: Verifying pause worked by checking ad status...`);
       await this.sleep(10000); // Wait 10 seconds for pause to take effect
       const verifyQuery = `
-        SELECT ad_group_ad.status, ad_group_ad.ad.id, ad_group_ad.resource_name
+        SELECT 
+          ad_group_ad.status, 
+          ad_group_ad.ad.id, 
+          ad_group_ad.resource_name,
+          ad_group_ad.policy_summary.approval_status
         FROM ad_group_ad 
         WHERE ad_group_ad.resource_name = '${adResourceName}'
       `;
@@ -634,7 +638,9 @@ class GoogleAdsAgent {
         const verifyResult = await customer.query(verifyQuery);
         if (verifyResult.length > 0) {
           adStatus = verifyResult[0].ad_group_ad.status;
+          const approvalStatus = verifyResult[0].ad_group_ad.policy_summary?.approval_status;
           console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus}`);
+          console.log(`🔍 DEBUG: Approval status: ${approvalStatus}`);
           console.log(`🔍 DEBUG: Ad resource name: ${verifyResult[0].ad_group_ad.resource_name}`);
           
           if (adStatus === 'PAUSED') {
