@@ -596,41 +596,31 @@ class GoogleAdsAgent {
       let verificationPassed = false;
       for (let attempt = 1; attempt <= 3; attempt++) {
         console.log(`🔍 DEBUG: Verification attempt ${attempt}/3...`);
-        await this.sleep(2000); // wait a bit before checking
+        await this.sleep(2000);
+
         const verifyResult = await customer.query(`
           SELECT ad_group_ad.status, ad_group_ad.resource_name
           FROM ad_group_ad
           WHERE ad_group_ad.resource_name = '${adResourceName}'
         `);
 
-        console.log(`🔍 DEBUG: Raw verification result:`, JSON.stringify(verifyResult, null, 2));
-        
-        const adStatus = verifyResult[0]?.ad_group_ad?.status;
-        const readableStatus = {
-          'ENABLED': 'ENABLED',
-          'PAUSED': 'PAUSED',
-          'REMOVED': 'REMOVED',
-          0: 'ENABLED',
-          1: 'PAUSED',
-          2: 'REMOVED',
-          3: 'UNKNOWN'
-        }[adStatus] || adStatus;
+        const statusRaw = verifyResult?.[0]?.ad_group_ad?.status;
 
-        console.log(`🔍 DEBUG: Raw ad status: ${adStatus}`);
-        console.log(`🔍 DEBUG: Interpreted status: ${readableStatus}`);
+        console.log(`🔍 DEBUG: Ad status after pause attempt: ${statusRaw}`);
 
-        if (adStatus === 'PAUSED' || readableStatus === 'PAUSED') {
+        if (statusRaw === 'PAUSED') {
+          console.log(`✅ DEBUG: Pause verification successful`);
           verificationPassed = true;
           break;
+        } else {
+          console.log(`❌ DEBUG: Pause verification failed - status is still "${statusRaw}"`);
+          await this.sleep(5000);
         }
-
-        await this.sleep(5000); // wait longer before retrying
       }
 
-      if (verificationPassed) {
-        console.log(`✅ Successfully paused ad: ${adResourceName}`);
-      } else {
+      if (!verificationPassed) {
         console.error(`❌ Pause verification failed after 3 attempts`);
+        // Consider throwing here or logging for review
       }
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
