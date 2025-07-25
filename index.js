@@ -582,14 +582,15 @@ class GoogleAdsAgent {
     const customer = await this.getCustomerClient(customerId);
 
     try {
-      const updateData = {
+      // Explicitly inline update_mask to ensure it's not lost
+      const updatePayload = {
         resource_name: adResourceName,
         status: 'PAUSED',
-        update_mask: ['status']  // ✅ REQUIRED
+        update_mask: ['status']
       };
 
-      console.log(`🔧 About to pause ad with payload:`, JSON.stringify(updateData, null, 2));
-      const result = await customer.adGroupAds.update([updateData]);
+      console.log('🔍 FINAL update payload:', JSON.stringify(updatePayload, null, 2));
+      const result = await customer.adGroupAds.update([updatePayload]);
       console.log(`🔍 Update response:`, JSON.stringify(result, null, 2));
 
       // Post-pause verification
