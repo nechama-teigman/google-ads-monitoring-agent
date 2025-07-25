@@ -683,6 +683,15 @@ class GoogleAdsAgent {
           const adCountAfterPause = await this.countEnabledAdsInAdGroup(customerId, ad.ad_group.id);
           console.log(`🔍 DEBUG: Ad group ${ad.ad_group.id} now has ${adCountAfterPause} enabled ads after pausing`);
           
+          // SAFETY CHECK: Skip creation if there are still 3 ads (pause didn't work)
+          if (adCountAfterPause >= 3) {
+            console.warn(`⚠️  SKIPPING DUPLICATE: Ad group ${ad.ad_group.id} still has ${adCountAfterPause} ads after pause attempt`);
+            console.warn(`⚠️  This suggests the pause didn't work or there are other ads in the group`);
+            console.warn(`⚠️  Skipping this ad to avoid resource limit errors`);
+            skippedCount++;
+            continue;
+          }
+          
           console.log(`🔧 Step 3: Creating duplicate for ad ${ad.ad_group_ad.ad.id}...`);
           // Now create duplicate (should have room since we paused the original)
           console.log(`🔧 Step 3a: About to call createAdDuplicate...`);
