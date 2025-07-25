@@ -572,107 +572,74 @@ class GoogleAdsAgent {
   async pauseDisapprovedAd(customerId, adResourceName) {
     console.log(`🔧 PAUSE FUNCTION STARTED for ad: ${adResourceName}`);
     console.log(`🔧 Dry run mode: ${this.dryRun}`);
-    
+
     if (this.dryRun) {
       console.log(`[DRY RUN] Would pause ad: ${adResourceName}`);
       return;
     }
-    
-    console.log(`🔧 About to rate limit...`);
+
     await this.rateLimit();
-    console.log(`🔧 Rate limiting completed for pause`);
-    
-    console.log(`🔧 Getting customer client...`);
     const customer = await this.getCustomerClient(customerId);
-    console.log(`🔧 Customer client obtained for pause`);
-    
+
     try {
-      // Try different field names for pausing ads
-      // Use the correct format with update_mask for pausing ads
       const updateData = {
         resource_name: adResourceName,
         status: 'PAUSED',
-        update_mask: ['status']
+        update_mask: ['status']  // ✅ REQUIRED
       };
 
-      console.log(`🔧 About to call adGroupAds.update with:`, JSON.stringify(updateData, null, 2));
-      console.log(`🔧 DEBUG: Trying to pause ad with resource_name: ${adResourceName}`);
-      console.log(`🔧 DEBUG: Using status field: 'PAUSED'`);
-      console.log(`🔧 Customer object type:`, typeof customer);
-      console.log(`🔧 Customer adGroupAds type:`, typeof customer.adGroupAds);
-      console.log(`🔧 Customer adGroupAds.update type:`, typeof customer.adGroupAds.update);
-      
+      console.log(`🔧 About to pause ad with payload:`, JSON.stringify(updateData, null, 2));
       const result = await customer.adGroupAds.update([updateData]);
-      console.log(`🔧 Update result:`, result);
-      console.log('🔍 Update response:', JSON.stringify(result, null, 2));
-      
-      // Validate the update response
-      if (!result || !result.results || result.results.length === 0) {
-        console.error('❌ Update failed or returned no result');
-        throw new Error('Ad update failed - no result returned');
-      }
-      
-      console.log(`⏸️  Paused disapproved ad: ${adResourceName}`);
-      
-      // DEBUG: Verify the pause actually worked by checking the ad status
-      console.log(`🔍 DEBUG: Verifying pause worked by checking ad status...`);
-      await this.sleep(10000); // Wait 10 seconds for pause to take effect
-      const verifyQuery = `
-        SELECT 
-          ad_group_ad.status, 
-          ad_group_ad.ad.id, 
-          ad_group_ad.resource_name,
-          ad_group_ad.policy_summary.approval_status
-        FROM ad_group_ad 
-        WHERE ad_group_ad.resource_name = '${adResourceName}'
-      `;
-      // Retry verification up to 3 times with delays
-      let adStatus = null;
-      let verificationAttempts = 0;
-      const maxVerificationAttempts = 3;
-      
-      while (verificationAttempts < maxVerificationAttempts) {
-        verificationAttempts++;
-        console.log(`🔍 DEBUG: Verification attempt ${verificationAttempts}/${maxVerificationAttempts}...`);
-        
-        const verifyResult = await customer.query(verifyQuery);
-        if (verifyResult.length > 0) {
-          adStatus = verifyResult[0].ad_group_ad.status;
-          const approvalStatus = verifyResult[0].ad_group_ad.policy_summary?.approval_status;
-          console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus}`);
-          console.log(`🔍 DEBUG: Approval status: ${approvalStatus}`);
-          console.log(`🔍 DEBUG: Ad resource name: ${verifyResult[0].ad_group_ad.resource_name}`);
-          
-          if (adStatus === 'PAUSED') {
-            console.log(`✅ DEBUG: Pause verification successful - ad is actually paused`);
-            break;
-          } else {
-            console.log(`❌ DEBUG: Pause verification failed - ad status is still ${adStatus}`);
-            if (verificationAttempts < maxVerificationAttempts) {
-              console.log(`⏳ DEBUG: Waiting 5 seconds before retry...`);
-              await this.sleep(5000);
-            } else {
-              console.log(`❌ DEBUG: Pause verification failed after ${maxVerificationAttempts} attempts`);
-              console.log(`🔍 DEBUG: This suggests the API call didn't work or we're using wrong field`);
-            }
-          }
-        } else {
-          console.log(`❌ DEBUG: Could not verify ad status - ad not found`);
+      console.log(`🔍 Update response:`, JSON.stringify(result, null, 2));
+
+      // Post-pause verification
+      let verificationPassed = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        console.log(`🔍 DEBUG: Verification attempt ${attempt}/3...`);
+        await this.sleep(2000); // wait a bit before checking
+        const verifyResult = await customer.query(`
+          SELECT ad_group_ad.status, ad_group_ad.resource_name
+          FROM ad_group_ad
+          WHERE ad_group_ad.resource_name = '${adResourceName}'
+        `);
+
+        const adStatus = verifyResult[0]?.ad_group_ad?.status;
+        const readableStatus = {
+          'ENABLED': 'ENABLED',
+          'PAUSED': 'PAUSED',
+          'REMOVED': 'REMOVED',
+          0: 'ENABLED',
+          1: 'PAUSED',
+          2: 'REMOVED',
+          3: 'UNKNOWN'
+        }[adStatus] || adStatus;
+
+        console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus} (${readableStatus})`);
+
+        if (adStatus === 'PAUSED' || readableStatus === 'PAUSED') {
+          verificationPassed = true;
           break;
         }
+
+        await this.sleep(5000); // wait longer before retrying
+      }
+
+      if (verificationPassed) {
+        console.log(`✅ Successfully paused ad: ${adResourceName}`);
+      } else {
+        console.error(`❌ Pause verification failed after 3 attempts`);
       }
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
       console.error('❌ Full pause error:', error);
-      
-      // Handle quota limits specifically
-      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
-        console.error('⚠️  Quota limit hit while pausing ad, waiting 120 seconds...');
+
+      if (error.message?.includes('quota') || error.message?.includes('limit')) {
+        console.error('⚠️  Quota or rate limit hit — retrying in 120 seconds...');
         await this.sleep(120000);
         return this.pauseDisapprovedAd(customerId, adResourceName); // Retry once
       }
-      
-      throw error; // Re-throw to ensure we know if pausing fails
+
+      throw error;
     }
   }
 
