@@ -588,12 +588,10 @@ class GoogleAdsAgent {
     
     try {
       // Try different field names for pausing ads
-      // Try the correct field name for pausing ads
+      // Use the correct top-level status field for pausing ads
       const updateData = {
         resource_name: adResourceName,
-        ad_group_ad: {
-          status: 'PAUSED'
-        }
+        status: 'PAUSED'
       };
 
       console.log(`🔧 About to call adGroupAds.update with:`, JSON.stringify(updateData, null, 2));
@@ -605,6 +603,13 @@ class GoogleAdsAgent {
       
       const result = await customer.adGroupAds.update([updateData]);
       console.log(`🔧 Update result:`, result);
+      
+      // Validate the update response
+      if (!result || !result.results || result.results.length === 0) {
+        console.error('❌ Update failed or returned no result');
+        throw new Error('Ad update failed - no result returned');
+      }
+      
       console.log(`⏸️  Paused disapproved ad: ${adResourceName}`);
       
       // DEBUG: Verify the pause actually worked by checking the ad status
