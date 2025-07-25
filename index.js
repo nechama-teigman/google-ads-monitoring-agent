@@ -588,10 +588,11 @@ class GoogleAdsAgent {
     
     try {
       // Try different field names for pausing ads
-      // Use the correct top-level status field for pausing ads
+      // Use the correct format with update_mask for pausing ads
       const updateData = {
         resource_name: adResourceName,
-        status: 'PAUSED'
+        status: 'PAUSED',
+        update_mask: ['status']
       };
 
       console.log(`🔧 About to call adGroupAds.update with:`, JSON.stringify(updateData, null, 2));
@@ -614,25 +615,44 @@ class GoogleAdsAgent {
       
       // DEBUG: Verify the pause actually worked by checking the ad status
       console.log(`🔍 DEBUG: Verifying pause worked by checking ad status...`);
-      await this.sleep(2000); // Wait 2 seconds
+      await this.sleep(10000); // Wait 10 seconds for pause to take effect
       const verifyQuery = `
         SELECT ad_group_ad.status, ad_group_ad.ad.id, ad_group_ad.resource_name
         FROM ad_group_ad 
         WHERE ad_group_ad.resource_name = '${adResourceName}'
       `;
-      const verifyResult = await customer.query(verifyQuery);
-      if (verifyResult.length > 0) {
-        const adStatus = verifyResult[0].ad_group_ad.status;
-        console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus}`);
-        console.log(`🔍 DEBUG: Ad resource name: ${verifyResult[0].ad_group_ad.resource_name}`);
-        if (adStatus === 'PAUSED') {
-          console.log(`✅ DEBUG: Pause verification successful - ad is actually paused`);
+      // Retry verification up to 3 times with delays
+      let adStatus = null;
+      let verificationAttempts = 0;
+      const maxVerificationAttempts = 3;
+      
+      while (verificationAttempts < maxVerificationAttempts) {
+        verificationAttempts++;
+        console.log(`🔍 DEBUG: Verification attempt ${verificationAttempts}/${maxVerificationAttempts}...`);
+        
+        const verifyResult = await customer.query(verifyQuery);
+        if (verifyResult.length > 0) {
+          adStatus = verifyResult[0].ad_group_ad.status;
+          console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus}`);
+          console.log(`🔍 DEBUG: Ad resource name: ${verifyResult[0].ad_group_ad.resource_name}`);
+          
+          if (adStatus === 'PAUSED') {
+            console.log(`✅ DEBUG: Pause verification successful - ad is actually paused`);
+            break;
+          } else {
+            console.log(`❌ DEBUG: Pause verification failed - ad status is still ${adStatus}`);
+            if (verificationAttempts < maxVerificationAttempts) {
+              console.log(`⏳ DEBUG: Waiting 5 seconds before retry...`);
+              await this.sleep(5000);
+            } else {
+              console.log(`❌ DEBUG: Pause verification failed after ${maxVerificationAttempts} attempts`);
+              console.log(`🔍 DEBUG: This suggests the API call didn't work or we're using wrong field`);
+            }
+          }
         } else {
-          console.log(`❌ DEBUG: Pause verification failed - ad status is still ${adStatus}`);
-          console.log(`🔍 DEBUG: This suggests the API call didn't work or we're using wrong field`);
+          console.log(`❌ DEBUG: Could not verify ad status - ad not found`);
+          break;
         }
-      } else {
-        console.log(`❌ DEBUG: Could not verify ad status - ad not found`);
       }
     } catch (error) {
       console.error('❌ Error pausing ad:', error.message);
