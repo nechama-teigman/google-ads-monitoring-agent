@@ -603,6 +603,8 @@ class GoogleAdsAgent {
           WHERE ad_group_ad.resource_name = '${adResourceName}'
         `);
 
+        console.log(`🔍 DEBUG: Raw verification result:`, JSON.stringify(verifyResult, null, 2));
+        
         const adStatus = verifyResult[0]?.ad_group_ad?.status;
         const readableStatus = {
           'ENABLED': 'ENABLED',
@@ -614,7 +616,8 @@ class GoogleAdsAgent {
           3: 'UNKNOWN'
         }[adStatus] || adStatus;
 
-        console.log(`🔍 DEBUG: Ad status after pause attempt: ${adStatus} (${readableStatus})`);
+        console.log(`🔍 DEBUG: Raw ad status: ${adStatus}`);
+        console.log(`🔍 DEBUG: Interpreted status: ${readableStatus}`);
 
         if (adStatus === 'PAUSED' || readableStatus === 'PAUSED') {
           verificationPassed = true;
