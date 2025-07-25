@@ -604,6 +604,7 @@ class GoogleAdsAgent {
       
       const result = await customer.adGroupAds.update([updateData]);
       console.log(`🔧 Update result:`, result);
+      console.log('🔍 Update response:', JSON.stringify(result, null, 2));
       
       // Validate the update response
       if (!result || !result.results || result.results.length === 0) {
