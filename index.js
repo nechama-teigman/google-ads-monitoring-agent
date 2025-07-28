@@ -286,8 +286,12 @@ class GoogleAdsAgent {
     try {
       const results = await customer.query(query);
       
+      console.log(`🔍 DEBUG: Raw API response for ad group ${adGroupId}:`, JSON.stringify(results, null, 2));
       console.log(`🔍 Ad group ${adGroupId} has ${results.length} total ads:`);
-      results.forEach((ad, index) => {
+      
+      // Limit logging to first 5 ads to avoid spam
+      const adsToLog = results.slice(0, 5);
+      adsToLog.forEach((ad, index) => {
         const adStatus = ad.ad_group_ad?.status;
         const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
         const statusText = approvalStatus === 1 ? 'APPROVED' : 
@@ -296,6 +300,10 @@ class GoogleAdsAgent {
                           approvalStatus === 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
         console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${adStatus}, Approval: ${approvalStatus} (${statusText})`);
       });
+      
+      if (results.length > 5) {
+        console.log(`   ... and ${results.length - 5} more ads`);
+      }
       
       console.log(`✅ Ad group ${adGroupId} has ${results.length} TOTAL ads (can accept ${3 - results.length} more)`);
       
