@@ -294,11 +294,18 @@ class GoogleAdsAgent {
       adsToLog.forEach((ad, index) => {
         const adStatus = ad.ad_group_ad?.status;
         const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
-        const statusText = approvalStatus === 1 ? 'APPROVED' : 
-                          approvalStatus === 2 ? 'APPROVED_LIMITED' :
-                          approvalStatus === 3 ? 'DISAPPROVED' :
-                          approvalStatus === 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
-        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${adStatus}, Approval: ${approvalStatus} (${statusText})`);
+        
+        // Convert numeric ad status to readable text
+        const adStatusText = adStatus === 1 ? 'REMOVED' :
+                           adStatus === 2 ? 'PAUSED' :
+                           adStatus === 3 ? 'ENABLED' : 'UNKNOWN';
+        
+        const approvalStatusText = approvalStatus === 1 ? 'APPROVED' : 
+                                 approvalStatus === 2 ? 'APPROVED_LIMITED' :
+                                 approvalStatus === 3 ? 'DISAPPROVED' :
+                                 approvalStatus === 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
+        
+        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${adStatus} (${adStatusText}), Approval: ${approvalStatus} (${approvalStatusText})`);
       });
       
       if (results.length > 5) {
@@ -656,7 +663,11 @@ class GoogleAdsAgent {
             verificationPassed = true;
             break;
           } else {
-            console.log(`❌ Pause verification failed - status is still "${statusRaw}"`);
+            // Convert numeric status to readable text for logging
+            const statusText = statusRaw === 1 ? 'REMOVED' :
+                             statusRaw === 2 ? 'PAUSED' :
+                             statusRaw === 3 ? 'ENABLED' : 'UNKNOWN';
+            console.log(`❌ Pause verification failed - status is still "${statusRaw}" (${statusText})`);
             
             // If this is the last attempt, try alternative method
             if (attempt === 5) {
