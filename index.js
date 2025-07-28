@@ -577,58 +577,188 @@ class GoogleAdsAgent {
     const customer = await this.getCustomerClient(customerId);
 
     try {
-      // Explicitly inline update_mask to ensure it's not lost
+      // First, check the current status of the ad
+      console.log('🔍 Checking current ad status before pause attempt...');
+      const currentStatusQuery = `
+        SELECT 
+          ad_group_ad.status, 
+          ad_group_ad.resource_name,
+          ad_group_ad.policy_summary.approval_status
+        FROM ad_group_ad
+        WHERE ad_group_ad.resource_name = '${adResourceName}'
+      `;
+      
+      const currentResult = await customer.query(currentStatusQuery);
+      if (currentResult && currentResult[0]) {
+        const currentStatus = currentResult[0].ad_group_ad.status;
+        const approvalStatus = currentResult[0].ad_group_ad.policy_summary.approval_status;
+        console.log(`🔍 Current ad status: ${currentStatus}, Approval status: ${approvalStatus}`);
+        
+        // If already paused, no need to pause again
+        if (currentStatus === 'PAUSED' || currentStatus === 2) {
+          console.log(`✅ Ad is already paused, skipping pause operation`);
+          return { paused: true, reason: 'already_paused' };
+        }
+      }
+
+      // Method 1: Try the standard update approach with corrected format
+      console.log('🔧 Attempting Method 1: Standard update with corrected format...');
+      
       const updatePayload = {
         resource_name: adResourceName,
-        status: 'PAUSED',
-        update_mask: ['status']
+        status: 2, // Use numeric enum: 2 = PAUSED, 3 = ENABLED
       };
 
-      console.log('🔍 FINAL update payload:', JSON.stringify(updatePayload, null, 2));
-      const result = await customer.adGroupAds.update([updatePayload]);
+      console.log('🔍 Update payload:', JSON.stringify(updatePayload, null, 2));
+      
+      // Use the correct update method with field mask
+      const result = await customer.adGroupAds.update(
+        [updatePayload],
+        {
+          updateMask: 'status' // String format, not array
+        }
+      );
+      
       console.log(`🔍 Update response:`, JSON.stringify(result, null, 2));
 
-      // Post-pause verification
+      // Enhanced verification with multiple attempts
       let verificationPassed = false;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        console.log(`🔍 DEBUG: Verification attempt ${attempt}/3...`);
-        await this.sleep(2000);
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        console.log(`🔍 Verification attempt ${attempt}/5...`);
+        await this.sleep(3000); // Wait 3 seconds between attempts
 
         const verifyResult = await customer.query(`
-          SELECT ad_group_ad.status, ad_group_ad.resource_name
+          SELECT 
+            ad_group_ad.status, 
+            ad_group_ad.resource_name,
+            ad_group_ad.policy_summary.approval_status
           FROM ad_group_ad
           WHERE ad_group_ad.resource_name = '${adResourceName}'
         `);
 
-        const statusRaw = verifyResult?.[0]?.ad_group_ad?.status;
+        if (verifyResult && verifyResult[0]) {
+          const statusRaw = verifyResult[0].ad_group_ad.status;
+          const approvalStatus = verifyResult[0].ad_group_ad.policy_summary.approval_status;
+          
+          console.log(`🔍 Ad status: ${statusRaw}, Approval: ${approvalStatus}`);
 
-        console.log(`🔍 DEBUG: Ad status after pause attempt: ${statusRaw}`);
+          // Check for both string and numeric status values
+          if (statusRaw === 'PAUSED' || statusRaw === 2) {
+            console.log(`✅ Pause verification successful`);
+            verificationPassed = true;
+            break;
+          } else {
+            console.log(`❌ Pause verification failed - status is still "${statusRaw}"`);
+            
+            // If this is the last attempt, try alternative method
+            if (attempt === 5) {
+              console.log('🔧 Trying Method 2: Alternative update approach...');
+              try {
+                // Method 2: Use mutate operations directly
+                const mutateOperations = [{
+                  ad_group_ad_operation: {
+                    update: {
+                      resource_name: adResourceName,
+                      status: 'PAUSED'
+                    },
+                    update_mask: {
+                      paths: ['status']
+                    }
+                  }
+                }];
 
-        if (statusRaw === 'PAUSED') {
-          console.log(`✅ DEBUG: Pause verification successful`);
-          verificationPassed = true;
-          break;
-        } else {
-          console.log(`❌ DEBUG: Pause verification failed - status is still "${statusRaw}"`);
-          await this.sleep(5000);
+                const mutateResult = await customer.mutateResources(mutateOperations);
+                console.log(`🔍 Mutate result:`, JSON.stringify(mutateResult, null, 2));
+                
+                // Wait and verify again
+                await this.sleep(5000);
+                const finalVerify = await customer.query(currentStatusQuery);
+                if (finalVerify && finalVerify[0]) {
+                  const finalStatus = finalVerify[0].ad_group_ad.status;
+                  if (finalStatus === 'PAUSED' || finalStatus === 2) {
+                    console.log(`✅ Alternative method successful`);
+                    verificationPassed = true;
+                    break;
+                  }
+                }
+              } catch (altError) {
+                console.error('❌ Alternative method also failed:', altError.message);
+              }
+            }
+          }
+        }
+        
+        if (attempt < 5) {
+          await this.sleep(2000); // Wait before next attempt
         }
       }
 
       if (!verificationPassed) {
-        console.error(`❌ Pause verification failed after 3 attempts`);
-        throw new Error(`Failed to pause ad ${adResourceName} - verification failed`);
+        // Check if the ad might be locked due to policy issues
+        console.error(`❌ All pause methods failed. Checking if ad is locked...`);
+        
+        const detailsQuery = `
+          SELECT 
+            ad_group_ad.status,
+            ad_group_ad.policy_summary.approval_status,
+            ad_group_ad.policy_summary.policy_topic_entries
+          FROM ad_group_ad
+          WHERE ad_group_ad.resource_name = '${adResourceName}'
+        `;
+        
+        const details = await customer.query(detailsQuery);
+        if (details && details[0]) {
+          console.error(`🔍 Ad details - Status: ${details[0].ad_group_ad.status}`);
+          console.error(`🔍 Approval status: ${details[0].ad_group_ad.policy_summary.approval_status}`);
+          console.error(`🔍 Policy entries: ${JSON.stringify(details[0].ad_group_ad.policy_summary.policy_topic_entries)}`);
+        }
+        
+        // Instead of throwing an error, log warning and continue
+        console.warn(`⚠️ WARNING: Could not pause ad ${adResourceName} after multiple attempts`);
+        console.warn(`⚠️ This ad may be locked due to policy violations or system restrictions`);
+        console.warn(`⚠️ Continuing with the process - you may need to manually pause this ad`);
+        
+        // Return a special indicator instead of throwing
+        return { paused: false, reason: 'verification_failed' };
       }
+
+      console.log(`✅ Successfully paused ad: ${adResourceName}`);
+      return { paused: true };
+
     } catch (error) {
-      console.error('❌ Error pausing ad:', error.message);
+      console.error('❌ Error pausing ad:', error.message || error);
       console.error('❌ Full pause error:', error);
 
-      if (error.message?.includes('quota') || error.message?.includes('limit')) {
-        console.error('⚠️  Quota or rate limit hit — retrying in 120 seconds...');
-        await this.sleep(120000);
-        return this.pauseDisapprovedAd(customerId, adResourceName); // Retry once
+      // Handle specific error types
+      if (error.message?.includes('CANNOT_UPDATE_REMOVED_AD')) {
+        console.warn(`⚠️ Ad is already removed/paused, treating as successful`);
+        return { paused: true, reason: 'already_removed' };
       }
 
-      throw error;
+      if (error.message?.includes('quota') || error.message?.includes('limit')) {
+        console.error('⚠️ Quota or rate limit hit — retrying in 120 seconds...');
+        await this.sleep(120000);
+        return this.pauseDisapprovedAd(customerId, adResourceName);
+      }
+
+      if (error.message?.includes('POLICY_VIOLATION') || error.message?.includes('AD_GROUP_AD_NOT_ELIGIBLE')) {
+        console.warn(`⚠️ Ad cannot be paused due to policy restrictions: ${error.message}`);
+        return { paused: false, reason: 'policy_restriction' };
+      }
+
+      // Log detailed error info but don't throw - continue processing other ads
+      console.error('❌ Detailed error information:');
+      console.error('   - Message:', error.message);
+      console.error('   - Code:', error.code);
+      console.error('   - Status:', error.status);
+      
+      if (error.errors && Array.isArray(error.errors)) {
+        error.errors.forEach((err, i) => {
+          console.error(`   - Error ${i + 1}:`, err.message, `(${err.code})`);
+        });
+      }
+
+      return { paused: false, reason: 'api_error', error: error.message };
     }
   }
 
@@ -658,16 +788,25 @@ class GoogleAdsAgent {
         console.log(`   Ad Group Name: ${adGroupName}`);
         
         try {
-          console.log(`🔧 Step 2: Pausing original disapproved ad ${ad.ad_group_ad.ad.id} first...`);
-          // IMPORTANT: Pause the original disapproved ad FIRST to make room
-          try {
-            await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
+          console.log(`🔧 Step 2: Attempting to pause original disapproved ad ${ad.ad_group_ad.ad.id}...`);
+          
+          // Try to pause the original disapproved ad
+          const pauseResult = await this.pauseDisapprovedAd(customerId, ad.ad_group_ad.resource_name);
+          
+          // Handle different pause results
+          if (pauseResult && !pauseResult.paused) {
+            console.warn(`⚠️ Could not pause ad ${ad.ad_group_ad.ad.id}: ${pauseResult.reason}`);
+            
+            if (pauseResult.reason === 'policy_restriction') {
+              console.warn(`⚠️ Ad is locked due to policy violations - skipping duplicate creation`);
+              skippedCount++;
+              continue;
+            } else if (pauseResult.reason === 'verification_failed') {
+              console.warn(`⚠️ Pause verification failed - proceeding with caution`);
+              // Continue to check ad group capacity but proceed carefully
+            }
+          } else {
             console.log(`✅ Successfully paused original ad ${ad.ad_group_ad.ad.id}`);
-          } catch (pauseError) {
-            console.error(`❌ FAILED TO PAUSE AD ${ad.ad_group_ad.ad.id}:`, pauseError);
-            console.error(`❌ Pause error message:`, pauseError.message);
-            console.error(`❌ Pause error stack:`, pauseError.stack);
-            throw pauseError; // Re-throw to stop processing this ad
           }
           
           // Wait a moment for the pause to take effect
