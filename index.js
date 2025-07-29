@@ -282,6 +282,7 @@ class GoogleAdsAgent {
         ad_group_ad.policy_summary.approval_status
       FROM ad_group_ad
       WHERE ad_group.id = ${adGroupId}
+        AND ad_group_ad.status = 'ENABLED'
     `;
     try {
       const results = await customer.query(query);
@@ -746,7 +747,7 @@ class GoogleAdsAgent {
         return { paused: false, reason: 'verification_failed' };
       }
 
-      console.log(`✅ Successfully paused ad: ${adResourceName}`);
+      console.log(`✅ Successfully removed ad: ${adResourceName}`);
       return { paused: true };
 
     } catch (error) {
