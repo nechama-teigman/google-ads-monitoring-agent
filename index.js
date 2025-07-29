@@ -295,10 +295,10 @@ class GoogleAdsAgent {
         const adStatus = ad.ad_group_ad?.status;
         const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
         
-        // Convert numeric ad status to readable text
-        const adStatusText = adStatus === 1 ? 'REMOVED' :
-                           adStatus === 2 ? 'PAUSED' :
-                           adStatus === 3 ? 'ENABLED' : 'UNKNOWN';
+        // Convert numeric ad status to readable text (corrected mapping)
+        const adStatusText = adStatus === 2 ? 'ENABLED' :
+                           adStatus === 3 ? 'PAUSED' :
+                           adStatus === 4 ? 'REMOVED' : 'UNKNOWN';
         
         const approvalStatusText = approvalStatus === 1 ? 'APPROVED' : 
                                  approvalStatus === 2 ? 'APPROVED_LIMITED' :
@@ -616,7 +616,7 @@ class GoogleAdsAgent {
         console.log(`🔍 Current ad status: ${currentStatus}, Approval status: ${approvalStatus}`);
         
         // If already paused, no need to pause again
-        if (currentStatus === 'PAUSED' || currentStatus === 2) {
+        if (currentStatus === 'PAUSED' || currentStatus === 3) {
           console.log(`✅ Ad is already paused, skipping pause operation`);
           return { paused: true, reason: 'already_paused' };
         }
@@ -664,15 +664,15 @@ class GoogleAdsAgent {
           console.log(`🔍 Ad status: ${statusRaw}, Approval: ${approvalStatus}`);
 
           // Check for both string and numeric status values
-          if (statusRaw === 'PAUSED' || statusRaw === 2) {
+          if (statusRaw === 'PAUSED' || statusRaw === 3) {
             console.log(`✅ Pause verification successful`);
             verificationPassed = true;
             break;
           } else {
-            // Convert numeric status to readable text for logging
-            const statusText = statusRaw === 1 ? 'REMOVED' :
-                             statusRaw === 2 ? 'PAUSED' :
-                             statusRaw === 3 ? 'ENABLED' : 'UNKNOWN';
+            // Convert numeric status to readable text for logging (corrected mapping)
+            const statusText = statusRaw === 2 ? 'ENABLED' :
+                             statusRaw === 3 ? 'PAUSED' :
+                             statusRaw === 4 ? 'REMOVED' : 'UNKNOWN';
             console.log(`❌ Pause verification failed - status is still "${statusRaw}" (${statusText})`);
             
             // If this is the last attempt, try alternative method
@@ -700,7 +700,7 @@ class GoogleAdsAgent {
                 const finalVerify = await customer.query(currentStatusQuery);
                 if (finalVerify && finalVerify[0]) {
                   const finalStatus = finalVerify[0].ad_group_ad.status;
-                  if (finalStatus === 'PAUSED' || finalStatus === 2) {
+                  if (finalStatus === 'PAUSED' || finalStatus === 3) {
                     console.log(`✅ Alternative method successful`);
                     verificationPassed = true;
                     break;
