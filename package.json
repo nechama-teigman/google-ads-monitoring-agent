@@ -4,9 +4,9 @@
   "description": "Background agent for monitoring Google Ads campaigns and handling disapproved ads",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
-    "deploy": "echo 'Ready for cloud deployment'"
+    "start": "node cloud-monitor.js",
+    "dev": "node clean-monitor.js",
+    "deploy": "git add . && git commit -m 'Deploy clean monitoring script' && git push"
   },
   "dependencies": {
     "dotenv": "^17.0.1",

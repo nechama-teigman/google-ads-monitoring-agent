@@ -20,15 +20,22 @@ class GoogleAdsAgent {
 
   async initialize() {
     try {
-      console.log('🔧 Checking environment variables...');
+      console.log('🔧 Checking credentials...');
       
-      // Load credentials from environment variables (for cloud deployment)
-      this.credentials = {
-        client_id: process.env.GOOGLE_ADS_CLIENT_ID,
-        client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
-        developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
-        refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
-      };
+      // Load credentials from environment variables (for cloud deployment) or secrets.json (for local development)
+      if (process.env.GOOGLE_ADS_CLIENT_ID) {
+        console.log('🔧 Using environment variables for credentials');
+        this.credentials = {
+          client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+          client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+          developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+          refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
+        };
+      } else {
+        console.log('🔧 Using secrets.json for credentials');
+        const fs = require('fs');
+        this.credentials = JSON.parse(fs.readFileSync('secrets.json', 'utf8'));
+      }
 
       // Validate credentials
       const missingCreds = [];
@@ -86,143 +93,58 @@ class GoogleAdsAgent {
     });
   }
 
-  async getAllEnabledAds(customerId) {
-          console.log('🔧 getAllEnabledAds STARTED for customer:', customerId, 'VERSION 2');
+  async getEnabledDisapprovedAds(customerId) {
+    console.log('🔍 Finding enabled disapproved ads...');
     await this.rateLimit();
-    console.log('🔧 Rate limiting completed');
     
-    const customer = await this.getCustomerClient(customerId);
-    console.log('🔧 Customer client obtained');
+    const query = `
+      SELECT 
+        ad_group_ad.ad.id,
+        ad_group_ad.ad.type,
+        ad_group_ad.policy_summary.approval_status,
+        ad_group_ad.resource_name,
+        ad_group.id,
+        ad_group.name,
+        campaign.id,
+        campaign.name,
+        ad_group_ad.status
+      FROM ad_group_ad 
+      WHERE campaign.status IN ('ENABLED', 'PAUSED')
+      AND ad_group.status IN ('ENABLED', 'PAUSED')
+      AND ad_group_ad.status = 'ENABLED'
+      AND ad_group_ad.policy_summary.approval_status = 'DISAPPROVED'
+      LIMIT 50
+    `;
     
     try {
-      // Modified query to include PAUSED campaigns and PAUSED ads (since your campaigns are paused)
-      const query = `
-        SELECT 
-          ad_group_ad.ad.id,
-          ad_group_ad.ad.type,
-          ad_group_ad.policy_summary.approval_status,
-          ad_group_ad.resource_name,
-          ad_group.id,
-          ad_group.name,
-          campaign.id,
-          campaign.name,
-          campaign.status,
-          ad_group_ad.status
-        FROM ad_group_ad 
-        WHERE campaign.status IN ('ENABLED', 'PAUSED')
-        AND ad_group.status IN ('ENABLED', 'PAUSED')
-        AND ad_group_ad.status IN ('ENABLED', 'PAUSED')
-        LIMIT 100
-      `;
-
-      console.log('🔍 Executing query (including paused campaigns)...');
-      console.log('🔍 Query:', query);
-      const results = await customer.query(query);
-      console.log('🔧 Query executed successfully, results type:', typeof results);
-      console.log('🔧 Results length:', results ? results.length : 'undefined');
-      console.log(`📊 Found ${results.length} enabled ads in enabled/paused campaigns`);
+      const customer = await this.getCustomerClient(customerId);
+      const response = await customer.query(query);
+      console.log(`🔍 Query returned ${response.length} results`);
       
-      // Debug: Show approval status breakdown for all ads
-      const statusBreakdown = {};
-      results.forEach(ad => {
-        const status = ad.ad_group_ad?.policy_summary?.approval_status;
-        statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+      const ads = response.map(row => {
+        return {
+          ad_group_ad: {
+            ad: { id: row.ad_group_ad.ad.id },
+            policy_summary: { approval_status: row.ad_group_ad.policy_summary.approval_status },
+            resource_name: row.ad_group_ad.resource_name,
+            status: row.ad_group_ad.status
+          },
+          ad_group: { id: row.ad_group.id, name: row.ad_group.name },
+          campaign: { id: row.campaign.id, name: row.campaign.name }
+        };
       });
       
-      console.log(`🔍 Approval status breakdown for all ads:`);
-      Object.keys(statusBreakdown).forEach(status => {
-        const statusText = status == 1 ? 'APPROVED' : 
-                          status == 2 ? 'APPROVED_LIMITED' :
-                          status == 3 ? 'DISAPPROVED' :
-                          status == 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
-        console.log(`   Status ${status} (${statusText}): ${statusBreakdown[status]} ads`);
-      });
-      
-      console.log(`🔎 Looking for ads with DISAPPROVED status (3)...`);
-      return results;
+      console.log(`📊 Found ${ads.length} enabled disapproved ads`);
+      return ads;
     } catch (error) {
-      console.error('❌ Error querying ads:', error.message || 'Unknown error');
-      if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
-        console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
-        await this.sleep(60000);
-        return this.getAllEnabledAds(customerId); // Retry once
-      }
-      console.error('Full error:', error);
+      console.error('❌ Error in getEnabledDisapprovedAds:', error);
       throw error;
     }
   }
 
   async findAllDisapprovedAds(customerId) {
-    const allAds = await this.getAllEnabledAds(customerId);
-    
-    const disapprovedAds = allAds.filter(ad => {
-      const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
-      // Google Ads approval status codes:
-      // 1 = APPROVED
-      // 2 = APPROVED_LIMITED (limited by policy)
-      // 3 = DISAPPROVED
-      // 4 = UNDER_REVIEW
-      const isDisapproved = approvalStatus === 3; // Only DISAPPROVED ads (approval_status = 3)
-      
-      // Special debugging for the specific ad we're looking for
-      if (ad.ad_group_ad.ad.id === '764582495271') {
-        console.log(`🔍 SPECIAL DEBUG - Ad 764582495271: Status ${ad.ad_group_ad.status}, Approval ${approvalStatus}`);
-        console.log(`🔍 This ad shows as "Disapproved" in UI but API returns approval_status = ${approvalStatus}`);
-      }
-      
-      if (isDisapproved) {
-        console.log(`🔍 Found disapproved ad: Ad ID ${ad.ad_group_ad.ad.id}, Status ${approvalStatus}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
-        
-        // Special logging for Dubai visa ad groups
-        if (ad.ad_group.name && ad.ad_group.name.toLowerCase().includes('dubai visa')) {
-          console.log(`🇦🇪 DUBAI VISA AD GROUP FOUND: Ad ID ${ad.ad_group_ad.ad.id}, Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
-        }
-      }
-      
-      return isDisapproved;
-    });
-
-    // Group by campaign for better reporting
-    const campaignGroups = {};
-    disapprovedAds.forEach(ad => {
-      const campaignName = ad.campaign.name;
-      const campaignId = ad.campaign.id;
-      const key = `${campaignName} (${campaignId})`;
-      
-      if (!campaignGroups[key]) {
-        campaignGroups[key] = [];
-      }
-      campaignGroups[key].push(ad);
-    });
-
-    // Filter to only campaigns with 'AMG' in the name (case-insensitive)
-    const filteredCampaignGroups = {};
-    Object.keys(campaignGroups).forEach(campaignKey => {
-      if (campaignKey && campaignKey.toLowerCase().includes('amg')) {
-        filteredCampaignGroups[campaignKey] = campaignGroups[campaignKey];
-      }
-    });
-    const filteredDisapprovedAds = Object.values(filteredCampaignGroups).flat();
-
-    console.log(`🔍 Found ${filteredDisapprovedAds.length} ads with policy issues across ${Object.keys(filteredCampaignGroups).length} AMG campaigns:`);
-    console.log(`📊 Total ads queried: ${allAds.length}`);
-    console.log(`📊 Disapproved ads found: ${disapprovedAds.length}`);
-    console.log(`📊 AMG campaign ads: ${filteredDisapprovedAds.length}`);
-    Object.keys(filteredCampaignGroups).forEach(campaignKey => {
-      console.log(`   📁 ${campaignKey}: ${filteredCampaignGroups[campaignKey].length} ads`);
-    });
-
-    // Show approval status breakdown
-    const statusCounts = { 3: 0 };
-    filteredDisapprovedAds.forEach(ad => {
-      const status = ad.ad_group_ad?.policy_summary?.approval_status;
-      if (statusCounts[status] !== undefined) statusCounts[status]++;
-    });
-    
-    console.log(`📊 Status breakdown:`);
-    if (statusCounts[3] > 0) console.log(`   - ${statusCounts[3]} ads disapproved (status 3)`);
-
-    return filteredDisapprovedAds;
+    // Use the new clean method that directly queries for disapproved ads
+    return await this.getEnabledDisapprovedAds(customerId);
   }
 
   async getAdDetails(customerId, adGroupAdResourceName) {
@@ -627,7 +549,7 @@ class GoogleAdsAgent {
       
       const updatePayload = {
         resource_name: adResourceName,
-        status: 2, // Use numeric enum: 2 = PAUSED, 3 = ENABLED
+        status: 3, // Use numeric enum: 2 = ENABLED, 3 = PAUSED, 4 = REMOVED
       };
 
       console.log('🔍 Update payload:', JSON.stringify(updatePayload, null, 2));
@@ -859,8 +781,9 @@ class GoogleAdsAgent {
           console.log(`🔧 Step 3: Creating duplicate for ad ${ad.ad_group_ad.ad.id}...`);
           // Now create duplicate (should have room since we paused the original)
           console.log(`🔧 Step 3a: About to call createAdDuplicate...`);
+          let duplicateResult;
           try {
-            const duplicateResult = await this.createAdDuplicate(customerId, ad);
+            duplicateResult = await this.createAdDuplicate(customerId, ad);
             console.log(`🔧 Step 3b: createAdDuplicate returned:`, duplicateResult);
           } catch (duplicateError) {
                     console.error(`❌ FAILED TO CREATE DUPLICATE FOR AD ${ad.ad_group_ad.ad.id}:`, duplicateError.message || 'Unknown error');
@@ -873,7 +796,7 @@ class GoogleAdsAgent {
           }
           
           // Check if the duplicate was actually created or skipped
-          if (duplicateResult.resource_name && duplicateResult.resource_name.includes('[SKIPPED]')) {
+          if (duplicateResult && duplicateResult.resource_name && duplicateResult.resource_name.includes('[SKIPPED]')) {
             console.log(`⏭️  Skipped ad ${ad.ad_group_ad.ad.id}: ${duplicateResult.resource_name}`);
             skippedCount++;
             continue;
@@ -1083,21 +1006,32 @@ app.get('/run-monitoring', async (req, res) => {
   }
 });
 
-// Start the server
-app.listen(port, () => {
-  console.log(`🚀 Server listening on port ${port}`);
-  console.log(`📋 Available endpoints:`);
-  console.log(`   - GET / - Health check`);
-  console.log(`   - GET /health - Detailed health status`);
-  console.log(`   - GET /run-monitoring - Trigger monitoring cycle (for Cloud Scheduler)`);
-  
-  // Don't run monitoring cycle on startup - let Cloud Scheduler trigger it
-  console.log(`⏰ Monitoring cycle will be triggered by Cloud Scheduler`);
-});
+// Start the server only in production
+if (process.env.PORT) {
+  app.listen(port, () => {
+    console.log(`🚀 Server listening on port ${port}`);
+    console.log(`📋 Available endpoints:`);
+    console.log(`   - GET / - Health check`);
+    console.log(`   - GET /health - Detailed health status`);
+    console.log(`   - GET /run-monitoring - Trigger monitoring cycle (for Cloud Scheduler)`);
+    
+    // Don't run monitoring cycle on startup - let Cloud Scheduler trigger it
+    console.log(`⏰ Monitoring cycle will be triggered by Cloud Scheduler`);
+  });
+}
 
 // Run if this file is executed directly
 if (require.main === module) {
-  // This will be handled by the Express server above
+  // Check if we're running locally (no PORT env var) or in production
+  if (!process.env.PORT) {
+    console.log('🏠 Running locally - executing monitoring cycle directly');
+    main().catch(error => {
+      console.error('❌ Fatal error in main:', error);
+      process.exit(1);
+    });
+  } else {
+    console.log('☁️ Running in production - starting web server');
+  }
 }
 
 module.exports = GoogleAdsAgent;
