@@ -286,7 +286,6 @@ class GoogleAdsAgent {
     try {
       const results = await customer.query(query);
       
-      console.log(`🔍 DEBUG: Raw API response for ad group ${adGroupId}:`, JSON.stringify(results, null, 2));
       console.log(`🔍 Ad group ${adGroupId} has ${results.length} total ads:`);
       
       // Limit logging to first 5 ads to avoid spam
@@ -745,8 +744,12 @@ class GoogleAdsAgent {
       return { paused: true };
 
     } catch (error) {
-      console.error('❌ Error pausing ad:', error.message || error);
-      console.error('❌ Full pause error:', error);
+      console.error('❌ Error pausing ad:', error.message || 'Unknown error');
+      console.error('❌ Full pause error details:', {
+        message: error.message || 'No message',
+        code: error.code || 'N/A',
+        status: error.status || 'N/A'
+      });
 
       // Handle specific error types
       if (error.message?.includes('CANNOT_UPDATE_REMOVED_AD')) {
@@ -767,17 +770,17 @@ class GoogleAdsAgent {
 
       // Log detailed error info but don't throw - continue processing other ads
       console.error('❌ Detailed error information:');
-      console.error('   - Message:', error.message);
-      console.error('   - Code:', error.code);
-      console.error('   - Status:', error.status);
+      console.error('   - Message:', error.message || 'No message');
+      console.error('   - Code:', error.code || 'N/A');
+      console.error('   - Status:', error.status || 'N/A');
       
       if (error.errors && Array.isArray(error.errors)) {
         error.errors.forEach((err, i) => {
-          console.error(`   - Error ${i + 1}:`, err.message, `(${err.code})`);
+          console.error(`   - Error ${i + 1}:`, err.message || 'No message', `(${err.code || 'N/A'})`);
         });
       }
 
-      return { paused: false, reason: 'api_error', error: error.message };
+      return { paused: false, reason: 'api_error', error: error.message || 'Unknown error' };
     }
   }
 
@@ -853,9 +856,12 @@ class GoogleAdsAgent {
             const duplicateResult = await this.createAdDuplicate(customerId, ad);
             console.log(`🔧 Step 3b: createAdDuplicate returned:`, duplicateResult);
           } catch (duplicateError) {
-            console.error(`❌ FAILED TO CREATE DUPLICATE FOR AD ${ad.ad_group_ad.ad.id}:`, duplicateError);
-            console.error(`❌ Duplicate error message:`, duplicateError.message);
-            console.error(`❌ Duplicate error stack:`, duplicateError.stack);
+                    console.error(`❌ FAILED TO CREATE DUPLICATE FOR AD ${ad.ad_group_ad.ad.id}:`, duplicateError.message || 'Unknown error');
+        console.error(`❌ Duplicate error details:`, {
+          message: duplicateError.message || 'No message',
+          code: duplicateError.code || 'N/A',
+          status: duplicateError.status || 'N/A'
+        });
             throw duplicateError; // Re-throw to stop processing this ad
           }
           
@@ -874,10 +880,14 @@ class GoogleAdsAgent {
           await this.sleep(10000);
           
         } catch (error) {
-          console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message || error);
+          console.error(`❌ Error processing ad ${ad.ad_group_ad.ad.id}:`, error.message || 'Unknown error');
           console.error(`❌ Campaign: ${ad.campaign.name}, Ad Group: ${ad.ad_group.name}`);
           console.error(`❌ Ad Group ID: ${ad.ad_group.id}, Ad ID: ${ad.ad_group_ad.ad.id}`);
-          console.error(`❌ Full error object:`, error);
+          console.error(`❌ Error details:`, {
+            message: error.message || 'No message',
+            code: error.code || 'N/A',
+            status: error.status || 'N/A'
+          });
           
           // Log specific error details for debugging
           if (error.message && error.message.includes('invalid argument')) {
