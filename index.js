@@ -279,31 +279,20 @@ class GoogleAdsAgent {
       SELECT 
         ad_group_ad.status, 
         ad_group_ad.ad.id,
-        ad_group_ad.policy_summary.approval_status,
-        ad_group.id as ad_group_id,
-        ad_group.name as ad_group_name
+        ad_group_ad.policy_summary.approval_status
       FROM ad_group_ad
       WHERE ad_group.id = ${adGroupId}
     `;
     try {
       const results = await customer.query(query);
       
-      // Verify all results are from the correct ad group
-      const correctAdGroupResults = results.filter(ad => ad.ad_group_id == adGroupId);
-      console.log(`🔍 Query returned ${results.length} total results`);
-      console.log(`🔍 Filtered to ${correctAdGroupResults.length} ads from ad group ${adGroupId}:`);
-      
-      if (results.length !== correctAdGroupResults.length) {
-        console.warn(`⚠️ WARNING: Query returned ${results.length - correctAdGroupResults.length} ads from other ad groups!`);
-      }
+      console.log(`🔍 Query returned ${results.length} ads for ad group ${adGroupId}:`);
       
       // Limit logging to first 5 ads to avoid spam
-      const adsToLog = correctAdGroupResults.slice(0, 5);
+      const adsToLog = results.slice(0, 5);
       adsToLog.forEach((ad, index) => {
         const adStatus = ad.ad_group_ad?.status;
         const approvalStatus = ad.ad_group_ad?.policy_summary?.approval_status;
-        const adGroupId = ad.ad_group_id;
-        const adGroupName = ad.ad_group_name;
         
         // Convert numeric ad status to readable text
         const adStatusText = adStatus === 1 ? 'REMOVED' :
@@ -315,23 +304,29 @@ class GoogleAdsAgent {
                                  approvalStatus === 3 ? 'DISAPPROVED' :
                                  approvalStatus === 4 ? 'UNDER_REVIEW' : 'UNKNOWN';
         
-        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Ad Group: ${adGroupId} (${adGroupName}), Status: ${adStatus} (${adStatusText}), Approval: ${approvalStatus} (${approvalStatusText})`);
+        console.log(`   ${index + 1}. Ad ID: ${ad.ad_group_ad.ad.id}, Status: ${adStatus} (${adStatusText}), Approval: ${approvalStatus} (${approvalStatusText})`);
       });
       
-      if (correctAdGroupResults.length > 5) {
-        console.log(`   ... and ${correctAdGroupResults.length - 5} more ads`);
+      if (results.length > 5) {
+        console.log(`   ... and ${results.length - 5} more ads`);
       }
       
-      console.log(`✅ Ad group ${adGroupId} has ${correctAdGroupResults.length} TOTAL ads (can accept ${3 - correctAdGroupResults.length} more)`);
+      console.log(`✅ Ad group ${adGroupId} has ${results.length} TOTAL ads (can accept ${3 - results.length} more)`);
       
       // Special logging for ad groups with 3 total ads
-      if (correctAdGroupResults.length >= 3) {
-        console.log(`🚨 AD GROUP ${adGroupId} HAS ${correctAdGroupResults.length} TOTAL ADS - AT LIMIT!`);
+      if (results.length >= 3) {
+        console.log(`🚨 AD GROUP ${adGroupId} HAS ${results.length} TOTAL ADS - AT LIMIT!`);
       }
       
-      return correctAdGroupResults.length; // Return count of ALL ads (enabled + paused)
+      return results.length; // Return count of ALL ads (enabled + paused)
     } catch (error) {
-      console.error('❌ Error counting ads in ad group:', error.message);
+      console.error('❌ Error counting ads in ad group:', error.message || 'Unknown error');
+      console.error('❌ Full error details:', {
+        message: error.message || 'No message',
+        code: error.code || 'N/A',
+        status: error.status || 'N/A'
+      });
+      
       if (error.message && (error.message.includes('quota') || error.message.includes('limit'))) {
         console.error('⚠️  Quota limit hit, waiting 60 seconds before retry...');
         await this.sleep(60000);
